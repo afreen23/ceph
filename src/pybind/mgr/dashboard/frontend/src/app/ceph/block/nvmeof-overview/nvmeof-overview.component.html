@@ -1,0 +1,17 @@
+<ul class="nav nav-tabs">
+  <li class="nav-item">
+    <a class="nav-link"
+       routerLink="/block/nvmeof/overview"
+       routerLinkActive="active"
+       ariaCurrentWhenActive="page"
+       i18n>Overview</a>
+  </li>
+</ul>
+
+<legend i18n>Gateways</legend>
+<div>
+  <cd-table [data]="gateways"
+            (fetchData)="getGateways()"
+            [columns]="gatewayColumns">
+  </cd-table>
+</div>

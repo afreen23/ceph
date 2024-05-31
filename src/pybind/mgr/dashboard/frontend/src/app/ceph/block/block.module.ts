@@ -38,6 +38,7 @@ import { RbdTrashListComponent } from './rbd-trash-list/rbd-trash-list.component
 import { RbdTrashMoveModalComponent } from './rbd-trash-move-modal/rbd-trash-move-modal.component';
 import { RbdTrashPurgeModalComponent } from './rbd-trash-purge-modal/rbd-trash-purge-modal.component';
 import { RbdTrashRestoreModalComponent } from './rbd-trash-restore-modal/rbd-trash-restore-modal.component';
+import { NvmeofOverviewComponent } from './nvmeof-overview/nvmeof-overview.component';
 
 @NgModule({
   imports: [
@@ -77,7 +78,8 @@ import { RbdTrashRestoreModalComponent } from './rbd-trash-restore-modal/rbd-tra
     RbdConfigurationListComponent,
     RbdConfigurationFormComponent,
     RbdTabsComponent,
-    RbdPerformanceComponent
+    RbdPerformanceComponent,
+    NvmeofOverviewComponent
   ],
   exports: [RbdConfigurationListComponent, RbdConfigurationFormComponent]
 })
@@ -197,6 +199,16 @@ const routes: Routes = [
           }
         ]
       }
+    ]
+  },
+  // NVMe/TCP
+  {
+    path: 'nvmeof',
+    canActivate: [FeatureTogglesGuardService],
+    data: { breadcrumbs: true, text: 'NVMe/TCP', path: 'nvmeof', disableSplit: true },
+    children: [
+      { path: '', redirectTo: 'overview', pathMatch: 'full' },
+      { path: 'overview', component: NvmeofOverviewComponent, data: { breadcrumbs: 'Overview' } }
     ]
   }
 ];
