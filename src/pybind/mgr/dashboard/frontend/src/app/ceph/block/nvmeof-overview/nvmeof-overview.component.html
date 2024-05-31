@@ -1,0 +1,33 @@
+<ul class="nav nav-tabs">
+  <li class="nav-item">
+    <a class="nav-link"
+       routerLink="/block/nvmeof/overview"
+       routerLinkActive="active"
+       ariaCurrentWhenActive="page"
+       i18n>Overview</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link"
+       routerLink="/block/nvmeof/subsystems"
+       routerLinkActive="active"
+       ariaCurrentWhenActive="page"
+       i18n>Subsystems</a>
+  </li>
+</ul>
+
+<legend i18n>Gateways</legend>
+<div>
+  <cd-table [data]="gateways"
+            (fetchData)="getGateways()"
+            [columns]="gatewayColumns"
+            selectionType="single"
+            (updateSelection)="updateSelection($event)">
+    <div class="table-actions btn-toolbar">
+      <cd-table-actions [permission]="permission"
+                        [selection]="selection"
+                        class="btn-group"
+                        [tableActions]="tableActions">
+      </cd-table-actions>
+    </div>
+  </cd-table>
+</div>

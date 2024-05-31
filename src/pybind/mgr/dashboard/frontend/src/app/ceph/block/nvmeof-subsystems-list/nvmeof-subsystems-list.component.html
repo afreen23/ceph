@@ -1,0 +1,15 @@
+<legend i18n>Subsystems</legend>
+<div>
+  <cd-table [data]="subsystems"
+            (fetchData)="getSubsystems($event)"
+            [columns]="subsystemsColumns"
+            [hasDetails]="true">
+    <div class="table-actions btn-toolbar">
+      <cd-table-actions [permission]="permission"
+                        [selection]="selection"
+                        class="btn-group"
+                        [tableActions]="tableActions">
+      </cd-table-actions>
+    </div>
+  </cd-table>
+</div>
