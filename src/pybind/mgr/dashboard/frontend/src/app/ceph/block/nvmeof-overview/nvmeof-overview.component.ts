@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { NvmeofService } from '../nvmeof.service';
-import { NvmeofGateway } from '~/app/shared/models/nvmeof-tcp';
+import { NvmeofGateway } from '~/app/shared/models/nvmeof';
 
 @Component({
   selector: 'cd-nvmeof-overview',

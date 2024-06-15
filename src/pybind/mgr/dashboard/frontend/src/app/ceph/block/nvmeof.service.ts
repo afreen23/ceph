@@ -12,4 +12,8 @@ export class NvmeofService {
   listGateways() {
     return this.http.get(`${BASE_URL}/gateway`);
   }
+
+  listSubsystems() {
+    return this.http.get(`${BASE_URL}/subsystem`);
+  }
 }

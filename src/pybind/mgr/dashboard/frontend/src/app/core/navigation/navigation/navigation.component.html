@@ -173,11 +173,6 @@
                             i18n-title
                             *ngIf="permissions.iscsi.read && enabledFeature.iscsi"
                             class="tc_submenuitem tc_submenuitem_block_iscsi"><span i18n>iSCSI</span></cds-sidenav-item>
-          <cds-sidenav-item route="/block/nvmeof"
-                            [useRouter]="true"
-                            title="NVMe/TCP"
-                            i18n-title
-                            class="tc_submenuitem tc_submenuitem_block_nvmeof"><span i18n>NVMe/TCP</span></cds-sidenav-item>
         </cds-sidenav-menu>
         <!-- Object Storage -->
         <cds-sidenav-menu title="Object"
@@ -313,3 +308,4 @@
     </ng-container>
   </ng-template>
   </div>
+  

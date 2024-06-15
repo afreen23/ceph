@@ -39,6 +39,7 @@ import { RbdTrashMoveModalComponent } from './rbd-trash-move-modal/rbd-trash-mov
 import { RbdTrashPurgeModalComponent } from './rbd-trash-purge-modal/rbd-trash-purge-modal.component';
 import { RbdTrashRestoreModalComponent } from './rbd-trash-restore-modal/rbd-trash-restore-modal.component';
 import { NvmeofOverviewComponent } from './nvmeof-overview/nvmeof-overview.component';
+import { NvmeofSubsystemsListComponent } from './nvmeof-subsystems-list/nvmeof-subsystems-list.component';
 
 @NgModule({
   imports: [
@@ -79,7 +80,8 @@ import { NvmeofOverviewComponent } from './nvmeof-overview/nvmeof-overview.compo
     RbdConfigurationFormComponent,
     RbdTabsComponent,
     RbdPerformanceComponent,
-    NvmeofOverviewComponent
+    NvmeofOverviewComponent,
+    NvmeofSubsystemsListComponent
   ],
   exports: [RbdConfigurationListComponent, RbdConfigurationFormComponent]
 })
@@ -208,7 +210,8 @@ const routes: Routes = [
     data: { breadcrumbs: true, text: 'NVMe/TCP', path: 'nvmeof', disableSplit: true },
     children: [
       { path: '', redirectTo: 'overview', pathMatch: 'full' },
-      { path: 'overview', component: NvmeofOverviewComponent, data: { breadcrumbs: 'Overview' } }
+      { path: 'overview', component: NvmeofOverviewComponent, data: { breadcrumbs: 'Overview' } },
+      { path: 'subsystems', component: NvmeofSubsystemsListComponent, data: { breadcrumbs: 'Subsystems' } }
     ]
   }
 ];
