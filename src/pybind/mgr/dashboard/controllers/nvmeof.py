@@ -66,12 +66,26 @@ else:
         )
         @empty_response
         @handle_nvmeof_error
-        def create(self, nqn: str, enable_ha: bool, max_namespaces: int = 256):
-            return NVMeoFClient().stub.create_subsystem(
+        def create(self, nqn: str, enable_ha: bool, max_namespaces: int = 256, initiators: str = None):
+            subsystem_response = NVMeoFClient().stub.create_subsystem(
                 NVMeoFClient.pb2.create_subsystem_req(
                     subsystem_nqn=nqn, max_namespaces=max_namespaces, enable_ha=enable_ha
                 )
             )
+            if subsystem_response.status != 0:
+                return subsystem_response
+            if initiators is not None:
+                all_host_nqns = initiators.split(',')
+                add_host_response = None
+                for host_nqn in all_host_nqns:
+                    add_host_response = NVMeoFClient().stub.add_host(
+                        NVMeoFClient.pb2.add_host_req(subsystem_nqn=nqn, host_nqn=host_nqn)
+                    )
+                    if add_host_response.status != 0:
+                        return add_host_response
+                return add_host_response
+            else:
+                return subsystem_response
 
         @EndpointDoc(
             "Delete an existing NVMeoF subsystem",
