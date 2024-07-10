@@ -8,7 +8,7 @@ from ..security import Scope
 from ..services.orchestrator import OrchClient
 from ..tools import str_to_bool
 from . import APIDoc, APIRouter, BaseController, Endpoint, EndpointDoc, Param, \
-    ReadPermission, RESTController, UIRouter
+    ReadPermission, RESTController, UIRouter, allow_empty_body
 
 logger = logging.getLogger(__name__)
 
@@ -363,6 +363,67 @@ else:
             return NVMeoFClient().stub.list_hosts(
                 NVMeoFClient.pb2.list_hosts_req(subsystem=nqn)
             )
+
+        @EndpointDoc(
+            "Allow hosts to access an NVMeoF subsystem",
+            parameters={
+                "nqn": Param(str, "NVMeoF subsystem NQN"),
+                "host_nqn": Param(str, 'NVMeoF host NQN. Use "*" to allow any host.'),
+            },
+        )
+        @empty_response
+        @handle_nvmeof_error
+        @allow_empty_body
+        def set(self, nqn: str, host_nqn: str):
+            new_host_nqns = host_nqn.split(',')
+            current_host_nqns = []
+            to_delete_nqns = []
+            to_add_nqns = []
+            res = None
+
+            res = NVMeoFClient().stub.list_hosts(
+                NVMeoFClient.pb2.list_hosts_req(subsystem=nqn))
+            if res.status != 0:
+                return res
+
+            for host in res.hosts:
+                current_host_nqns.append(host.nqn)
+
+            if res.allow_any_host and host_nqn != "*":
+                to_delete_nqns = ["*"]
+                to_add_nqns = new_host_nqns
+
+            elif host_nqn == "*":
+                to_delete_nqns = current_host_nqns
+                to_add_nqns.append(host_nqn)
+
+            else:
+                for current_nqn in current_host_nqns:
+                    if current_nqn not in new_host_nqns:
+                        to_delete_nqns.append(current_nqn)
+
+                for new_nqn in new_host_nqns:
+                    if new_nqn not in current_host_nqns:
+                        to_add_nqns.append(new_nqn)
+
+            for del_nqn in to_delete_nqns:
+                res = NVMeoFClient().stub.remove_host(
+                    NVMeoFClient.pb2.remove_host_req(subsystem_nqn=nqn, host_nqn=del_nqn)
+                )
+                if res.status != 0:
+                    return res
+                logger.info("removed host %s from subsystem %s", del_nqn, nqn)
+
+            for add_nqn in to_add_nqns:
+                res = NVMeoFClient().stub.add_host(
+                    NVMeoFClient.pb2.add_host_req(subsystem_nqn=nqn, host_nqn=add_nqn)
+                )
+                if res.status != 0:
+                    return res
+                logger.info("added host %s to subsystem %s", add_nqn, nqn)
+
+            logger.info("Updated the hosts in subsystem %s", nqn)
+            return res
 
         @EndpointDoc(
             "Allow hosts to access an NVMeoF subsystem",
