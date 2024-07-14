@@ -1,60 +1,87 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, Input, OnChanges, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
-
+import { NvmeofService } from '~/app/shared/api/nvmeof.service';
+import { CriticalConfirmationModalComponent } from '~/app/shared/components/critical-confirmation-modal/critical-confirmation-modal.component';
 import { ActionLabelsI18n, URLVerbs } from '~/app/shared/constants/app.constants';
+import { Icons } from '~/app/shared/enum/icons.enum';
+import { CdTableAction } from '~/app/shared/models/cd-table-action';
 import { CdTableSelection } from '~/app/shared/models/cd-table-selection';
-import { NvmeofSubsystem } from '~/app/shared/models/nvmeof';
+import { FinishedTask } from '~/app/shared/models/finished-task';
+import { NvmeofSubsystemNamespace } from '~/app/shared/models/nvmeof';
 import { Permission } from '~/app/shared/models/permissions';
 import { AuthStorageService } from '~/app/shared/services/auth-storage.service';
-import { ListWithDetails } from '~/app/shared/classes/list-with-details.class';
-import { CdTableAction } from '~/app/shared/models/cd-table-action';
-import { Icons } from '~/app/shared/enum/icons.enum';
-import { CriticalConfirmationModalComponent } from '~/app/shared/components/critical-confirmation-modal/critical-confirmation-modal.component';
-import { FinishedTask } from '~/app/shared/models/finished-task';
 import { ModalService } from '~/app/shared/services/modal.service';
 import { TaskWrapperService } from '~/app/shared/services/task-wrapper.service';
-import { NvmeofService } from '~/app/shared/api/nvmeof.service';
 
 const BASE_URL = 'block/nvmeof/subsystems';
 
 @Component({
-  selector: 'cd-nvmeof-subsystems',
-  templateUrl: './nvmeof-subsystems.component.html',
-  styleUrls: ['./nvmeof-subsystems.component.scss']
+  selector: 'cd-nvmeof-namespaces-list',
+  templateUrl: './nvmeof-namespaces-list.component.html',
+  styleUrls: ['./nvmeof-namespaces-list.component.scss']
 })
-export class NvmeofSubsystemsComponent extends ListWithDetails implements OnInit {
-  subsystems: NvmeofSubsystem[] = [];
-  subsystemsColumns: any;
-  permission: Permission;
-  selection = new CdTableSelection();
+export class NvmeofNamespacesListComponent implements OnInit, OnChanges {
+  @Input()
+  subsystemNQN: string;
+
+  namespacesColumns: any;
   tableActions: CdTableAction[];
-  subsystemDetails: any[];
+  selection = new CdTableSelection();
+  permission: Permission;
+  namespaces: NvmeofSubsystemNamespace[];
 
   constructor(
-    private nvmeofService: NvmeofService,
-    private authStorageService: AuthStorageService,
     public actionLabels: ActionLabelsI18n,
     private router: Router,
     private modalService: ModalService,
-    private taskWrapper: TaskWrapperService
+    private authStorageService: AuthStorageService,
+    private taskWrapper: TaskWrapperService,
+    private nvmeofService: NvmeofService
   ) {
-    super();
     this.permission = this.authStorageService.getPermissions().nvmeof;
   }
 
   ngOnInit() {
-    this.subsystemsColumns = [
+    this.namespacesColumns = [
       {
-        name: $localize`NQN`,
-        prop: 'nqn'
+        name: $localize`ID`,
+        prop: 'nsid'
       },
       {
-        name: $localize`# Namespaces`,
-        prop: 'namespace_count'
+        name: $localize`UUID`,
+        prop: 'uuid'
       },
       {
-        name: $localize`# Maximum Namespaces`,
-        prop: 'max_namespaces'
+        name: $localize`Image`,
+        prop: 'bdev_name'
+      },
+      {
+        name: $localize`Image Size`,
+        prop: 'rbd_image_size'
+      },
+      {
+        name: $localize`Block Size`,
+        prop: 'block_size'
+      },
+      {
+        name: $localize`RW IOPS`,
+        prop: 'rw_ios_per_second'
+      },
+      {
+        name: $localize`RW MB/s`,
+        prop: 'rw_mbytes_per_second'
+      },
+      {
+        name: $localize`R MB/s`,
+        prop: 'r_mbytes_per_second'
+      },
+      {
+        name: $localize`W MB/s`,
+        prop: 'w_mbytes_per_second'
+      },
+      {
+        name: $localize`Load Balancing Group`,
+        prop: 'load_balancing_group'
       }
     ];
     this.tableActions = [
@@ -92,16 +119,19 @@ export class NvmeofSubsystemsComponent extends ListWithDetails implements OnInit
     ];
   }
 
+  ngOnChanges() {
+    this.listNamespaces();
+  }
+
   updateSelection(selection: CdTableSelection) {
     this.selection = selection;
   }
 
-  getSubsystems() {
+  listNamespaces() {
     this.nvmeofService
-      .listSubsystems()
-      .subscribe((subsystems: NvmeofSubsystem[] | NvmeofSubsystem) => {
-        if (Array.isArray(subsystems)) this.subsystems = subsystems;
-        else this.subsystems = [subsystems];
+      .listNamespaces(this.subsystemNQN)
+      .subscribe((res: NvmeofSubsystemNamespace[]) => {
+        this.namespaces = res;
       });
   }
 

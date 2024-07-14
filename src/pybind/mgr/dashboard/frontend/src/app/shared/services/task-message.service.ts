@@ -351,6 +351,9 @@ export class TaskMessageService {
     'nvmeof/subsystem/delete': this.newTaskMessage(this.commonOperations.delete, (metadata) =>
       this.nvmeofSubsystem(metadata)
     ),
+    'nvmeof/subsystem/edit': this.newTaskMessage(this.commonOperations.update, (metadata) =>
+      this.nvmeofSubsystem(metadata)
+    ),
     'nfs/create': this.newTaskMessage(this.commonOperations.create, (metadata) =>
       this.nfs(metadata)
     ),

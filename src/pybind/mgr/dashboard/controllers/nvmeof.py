@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
+import json
 import logging
 from typing import Any, Dict, Optional
+
+from ..exceptions import DashboardException
 
 from .. import mgr
 from ..model import nvmeof as model
@@ -38,12 +41,42 @@ else:
     @APIDoc("NVMe-oF Subsystem Management API", "NVMe-oF Subsystem")
     class NVMeoFSubsystem(RESTController):
         @EndpointDoc("List all NVMeoF subsystems")
-        @map_collection(model.Subsystem, pick="subsystems")
-        @handle_nvmeof_error
         def list(self):
-            return NVMeoFClient().stub.list_subsystems(
+            response = []
+            # Get list of subystems
+            subsystems =  NVMeoFClient().stub.list_subsystems(
                 NVMeoFClient.pb2.list_subsystems_req()
             )
+            if subsystems.status != 0:
+                raise DashboardException(
+                    msg=response.error_message,
+                    code=response.status,
+                    http_status_code=NVMeoFClient().NVMeoFError2HTTP.get(response.status, 400),
+                    component="nvmeof",
+                )
+            # Create a new response with initiators information appended
+            for subs in subsystems.subsystems:
+                res = {
+                    'nqn': subs.nqn,
+                    'enable_ha': subs.enable_ha,
+                    'serial_number': subs.serial_number,
+                    'model_number': subs.model_number,
+                    'min_cntlid': subs.min_cntlid,
+                    'max_cntlid': subs.max_cntlid,
+                    'namespace_count': subs.namespace_count,
+                    'max_namespaces': subs.max_namespaces,
+                    'subtype': subs.subtype,
+                    'initiators': [],
+                }
+                # Get list of initiators present on the subsystem
+                hosts = NVMeoFHost().list(subs.nqn)
+                # Decode the bytes object to json
+                json_str = hosts.decode('utf-8')
+                json_obj = json.loads(json_str)
+                # Appending initiators information
+                res['initiators'] = json_obj
+                response.append(res)
+            return response
 
         @EndpointDoc(
             "Get information from a specific NVMeoF subsystem",

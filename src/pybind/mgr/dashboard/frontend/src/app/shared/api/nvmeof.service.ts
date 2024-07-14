@@ -13,10 +13,12 @@ const BASE_URL = 'api/nvmeof';
 export class NvmeofService {
   constructor(private http: HttpClient) {}
 
+  // Gateways
   listGateways() {
     return this.http.get(`${BASE_URL}/gateway`);
   }
 
+  // Subsystems
   listSubsystems() {
     return this.http.get(`${BASE_URL}/subsystem`);
   }
@@ -25,7 +27,12 @@ export class NvmeofService {
     return this.http.get(`${BASE_URL}/subsystem/${subsystemNQN}`);
   }
 
-  createSubsystem(request: { nqn: string; max_namespaces?: number; enable_ha: boolean }) {
+  createSubsystem(request: {
+    nqn: string;
+    max_namespaces?: number;
+    enable_ha: boolean;
+    initiators: string;
+  }) {
     return this.http.post(`${BASE_URL}/subsystem`, request, { observe: 'response' });
   }
 
@@ -43,5 +50,25 @@ export class NvmeofService {
         return observableOf(false);
       })
     );
+  }
+
+  // Initiators
+  getInitiators(subsystemNQN: string) {
+    return this.http.get(`${BASE_URL}/subsystem/${subsystemNQN}/host`);
+  }
+
+  updateInitiators(subsystemNQN: string, hostNQN: string) {
+    return this.http.put(
+      `${BASE_URL}/subsystem/${subsystemNQN}/host/${hostNQN}`,
+      {},
+      {
+        observe: 'response'
+      }
+    );
+  }
+
+  // Namespaces
+  listNamespaces(subsystemNQN: string) {
+    return this.http.get(`${BASE_URL}/subsystem/${subsystemNQN}/namespace`);
   }
 }

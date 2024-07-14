@@ -11,6 +11,27 @@
         </cd-table-key-value>
       </ng-template>
     </ng-container>
+    <ng-container ngbNavItem="initiators">
+      <a ngbNavLink
+         i18n>Initiators ({{ initiatorsCount }})</a>
+      <ng-template ngbNavContent>
+
+        <cd-table #table
+                  [data]="initiators"
+                  columnMode="flex"
+                  [columns]="initiatorsColumns"
+                  [toolHeader]="false"
+                  selectionType="">
+        </cd-table>
+      </ng-template>
+    </ng-container>
+    <ng-container ngbNavItem="namespaces">
+      <a ngbNavLink
+         i18n>Namespaces</a>
+      <ng-template ngbNavContent>
+        <cd-nvmeof-namespaces-list [subsystemNQN]="subsystemNQN"></cd-nvmeof-namespaces-list>
+      </ng-template>
+    </ng-container>
   </nav>
 
   <div [ngbNavOutlet]="nav"></div>

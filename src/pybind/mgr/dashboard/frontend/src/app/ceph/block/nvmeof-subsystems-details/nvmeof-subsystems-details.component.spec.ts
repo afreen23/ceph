@@ -27,7 +27,8 @@ describe('NvmeofSubsystemsDetailsComponent', () => {
       subtype: 'NVMe',
       nqn: 'nqn.2001-07.com.ceph:1720603703820',
       namespace_count: 1,
-      max_namespaces: 256
+      max_namespaces: 256,
+      initiators: [{ nqn: '*' }]
     };
     component.ngOnChanges();
     fixture.detectChanges();

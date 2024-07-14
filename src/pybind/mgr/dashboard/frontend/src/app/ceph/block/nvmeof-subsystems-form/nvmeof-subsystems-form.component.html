@@ -12,7 +12,7 @@
         <div class="form-group row">
           <label class="cd-col-form-label"
                  for="nqn">
-            <span class="required"
+            <span [ngClass]="{'required': !edit}"
                   i18n>NQN</span>
           </label>
           <div class="cd-col-form-input">
@@ -21,7 +21,7 @@
                    type="text"
                    formControlName="nqn">
               <cd-help-text>
-                The NVMe Qualified Name (NQN) is a unique and permanent name for the lifetime of the subsystem.
+                A unique and permanent name for the lifetime of the subsystem.
               </cd-help-text>
             <span class="invalid-feedback"
                   *ngIf="subsystemForm.showError('nqn', formDir, 'required')"
@@ -31,7 +31,7 @@
                   i18n>This NQN is already in use.</span>
             <span class="invalid-feedback"
                   *ngIf="subsystemForm.showError('nqn', formDir, 'pattern')"
-                  i18n>An NQN should follow the format of<br/>&lt;<code>nqn.$year-$month.$reverseDomainName:$definedName</code>".&gt;</span>
+                  i18n>Expected NQN format<br/>&lt;<code>nqn.$year-$month.$reverseDomainName:$utf8-string</code>".&gt; or <br/>&lt;<code>nqn.2014-08.org.nvmexpress:uuid:$UUID-string</code>".&gt;</span>
             <span class="invalid-feedback"
                   *ngIf="subsystemForm.showError('nqn', formDir, 'maxLength')"
                   i18n>An NQN should not be more than 223 bytes in length.</span>
@@ -59,6 +59,67 @@
             <span class="invalid-feedback"
                   *ngIf="subsystemForm.showError('max_namespaces', formDir, 'pattern')"
                   i18n>The value must be  a positive integer.</span>
+          </div>
+        </div>
+        <!-- Initiators -->
+        <div class="form-group row">
+          <label class="cd-col-form-label"
+                 for="initiators">
+            <span i18n>Initiators</span>
+          </label>
+          <div class="cd-col-form-input">
+            <select id="initiators"
+                    class="form-select"
+                    formControlName="initiators"
+                    (change)="onInitiatorSelect($event.target.value)">
+              <option i18n
+                      value="all">Allow any host</option>
+              <option i18n
+                      value="add-host">Add hosts</option>
+            </select>
+            <cd-help-text i18n>The client that connects to the NVMe-oF target to access NVMe storage</cd-help-text>
+            <!-- Initiators: Hosts -->
+            <div formArrayName="hosts">
+              <div *ngFor="let host of hosts.controls; let hi = index"
+                   class="input-group cd-mb my-1">
+                <input class="cd-form-control"
+                       type="text"
+                       [formControlName]="hi"/>
+                <button class="btn btn-light"
+                        type="button"
+                        id="add-button-{{hi}}"
+                        [disabled]="subsystemForm.get('hosts').controls[hi].invalid
+                        || subsystemForm.get('hosts').errors?.duplicate
+                        || subsystemForm.get('hosts').controls.length === 32
+                        || (subsystemForm.get('hosts').controls.length !== 1 && subsystemForm.get('hosts').controls.length !== hi+1)"
+                        (click)="addHost()">
+                  <i class="fa fa-plus"></i>
+                </button>
+                <button class="btn btn-light"
+                        type="button"
+                        id="delete-button-{{hi}}"
+                        [disabled]="hosts.controls.length === 1"
+                        (click)="removeHost(hi)">
+                  <i class="fa fa-trash-o"></i>
+                </button>
+                <ng-container *ngIf="subsystemForm.get('hosts').controls[hi].invalid
+                              && (subsystemForm.get('hosts').controls[hi].dirty
+                              || subsystemForm.get('hosts').controls[hi].touched)">
+                  <span class="invalid-feedback"
+                        *ngIf="subsystemForm.get('hosts').controls[hi].errors?.required"
+                        i18n>This field is required.</span>
+                  <span class="invalid-feedback"
+                        *ngIf="subsystemForm.get('hosts').controls[hi].errors?.pattern"
+                        i18n>Expected NQN format<br/>&lt;<code>nqn.$year-$month.$reverseDomainName:$utf8-string</code>".&gt; or <br/>&lt;<code>nqn.2014-08.org.nvmexpress:uuid:$UUID-string</code>".&gt;</span>
+                  <span class="invalid-feedback"
+                        *ngIf="subsystemForm.get('hosts').controls[hi].errors?.maxLength"
+                        i18n>An NQN should not be more than 223 bytes in length.</span>
+                </ng-container>
+              </div>
+              <span class="invalid-feedback"
+                    *ngIf="subsystemForm.get('hosts').errors?.duplicate"
+                    i18n>Duplicate entry detected. Enter a unique value.</span>
+            </div>
           </div>
         </div>
       </div>
