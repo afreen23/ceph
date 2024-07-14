@@ -241,7 +241,7 @@ const routes: Routes = [
             outlet: 'modal'
           },
           {
-            path: `${URLVerbs.EDIT}/:subsystem_nqn`,
+            path: `${URLVerbs.EDIT}/:subsystem_nqn/:max_ns`,
             component: NvmeofSubsystemsFormComponent,
             outlet: 'modal'
           }

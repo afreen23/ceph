@@ -18,4 +18,9 @@ export interface NvmeofSubsystem {
   namespace_count: number;
   subtype: string;
   max_namespaces: number;
+  initiators: NvmeofSubsystemHost[];
+}
+
+export interface NvmeofSubsystemHost {
+  nqn: string;
 }

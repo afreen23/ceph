@@ -22,6 +22,7 @@ describe('NvmeofSubsystemsFormComponent', () => {
   const mockTimestamp = 1720693470789;
 
   beforeEach(async () => {
+    spyOn(Date, 'now').and.returnValue(mockTimestamp);
     await TestBed.configureTestingModule({
       declarations: [NvmeofSubsystemsFormComponent],
       providers: [NgbActiveModal],
@@ -40,7 +41,6 @@ describe('NvmeofSubsystemsFormComponent', () => {
     component.ngOnInit();
     form = component.subsystemForm;
     formHelper = new FormHelper(form);
-    spyOn(Date, 'now').and.returnValue(mockTimestamp);
     fixture.detectChanges();
   });
 
@@ -60,7 +60,8 @@ describe('NvmeofSubsystemsFormComponent', () => {
       expect(nvmeofService.createSubsystem).toHaveBeenCalledWith({
         nqn: expectedNqn,
         max_namespaces: 256,
-        enable_ha: true
+        enable_ha: true,
+        initiators: '*'
       });
     });
 
