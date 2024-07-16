@@ -9,6 +9,9 @@ import { CdTableSelection } from '~/app/shared/models/cd-table-selection';
 import { FinishedTask } from '~/app/shared/models/finished-task';
 import { NvmeofSubsystemNamespace } from '~/app/shared/models/nvmeof';
 import { Permission } from '~/app/shared/models/permissions';
+import { DimlessBinaryPipe } from '~/app/shared/pipes/dimless-binary.pipe';
+import { IopsPipe } from '~/app/shared/pipes/iops.pipe';
+import { MbpersecondPipe } from '~/app/shared/pipes/mbpersecond.pipe';
 import { AuthStorageService } from '~/app/shared/services/auth-storage.service';
 import { ModalService } from '~/app/shared/services/modal.service';
 import { TaskWrapperService } from '~/app/shared/services/task-wrapper.service';
@@ -36,7 +39,10 @@ export class NvmeofNamespacesListComponent implements OnInit, OnChanges {
     private modalService: ModalService,
     private authStorageService: AuthStorageService,
     private taskWrapper: TaskWrapperService,
-    private nvmeofService: NvmeofService
+    private nvmeofService: NvmeofService,
+    private dimlessBinaryPipe: DimlessBinaryPipe,
+    private mbPerSecondPipe: MbpersecondPipe,
+    private iopsPipe: IopsPipe
   ) {
     this.permission = this.authStorageService.getPermissions().nvmeof;
   }
@@ -48,40 +54,61 @@ export class NvmeofNamespacesListComponent implements OnInit, OnChanges {
         prop: 'nsid'
       },
       {
-        name: $localize`UUID`,
-        prop: 'uuid'
-      },
-      {
-        name: $localize`Image`,
+        name: $localize`Bdev Name`,
         prop: 'bdev_name'
       },
       {
+        name: $localize`Pool `,
+        prop: 'rbd_pool_name',
+        flexGrow: 2
+      },
+      {
+        name: $localize`Image`,
+        prop: 'rbd_image_name',
+        flexGrow: 3
+      },
+      {
         name: $localize`Image Size`,
-        prop: 'rbd_image_size'
+        prop: 'rbd_image_size',
+        pipe: this.dimlessBinaryPipe
       },
       {
         name: $localize`Block Size`,
-        prop: 'block_size'
+        prop: 'block_size',
+        pipe: this.dimlessBinaryPipe
       },
       {
-        name: $localize`RW IOPS`,
-        prop: 'rw_ios_per_second'
+        name: $localize`IOPS`,
+        prop: 'rw_ios_per_second',
+        sortable: false,
+        pipe: this.iopsPipe,
+        flexGrow: 1.5
       },
       {
-        name: $localize`RW MB/s`,
-        prop: 'rw_mbytes_per_second'
+        name: $localize`R/W Throughput`,
+        prop: 'rw_mbytes_per_second',
+        sortable: false,
+        pipe: this.mbPerSecondPipe,
+        flexGrow: 1.5
       },
       {
-        name: $localize`R MB/s`,
-        prop: 'r_mbytes_per_second'
+        name: $localize`Read Throughput`,
+        prop: 'r_mbytes_per_second',
+        sortable: false,
+        pipe: this.mbPerSecondPipe,
+        flexGrow: 1.5
       },
       {
-        name: $localize`W MB/s`,
-        prop: 'w_mbytes_per_second'
+        name: $localize`Write Throughput`,
+        prop: 'w_mbytes_per_second',
+        sortable: false,
+        pipe: this.mbPerSecondPipe,
+        flexGrow: 1.5
       },
       {
         name: $localize`Load Balancing Group`,
-        prop: 'load_balancing_group'
+        prop: 'load_balancing_group',
+        flexGrow: 1.5
       }
     ];
     this.tableActions = [
@@ -89,7 +116,11 @@ export class NvmeofNamespacesListComponent implements OnInit, OnChanges {
         name: this.actionLabels.CREATE,
         permission: 'create',
         icon: Icons.add,
-        click: () => this.router.navigate([BASE_URL, { outlets: { modal: [URLVerbs.CREATE] } }]),
+        click: () =>
+          this.router.navigate([
+            BASE_URL,
+            { outlets: { modal: [URLVerbs.CREATE, this.subsystemNQN, 'namespace'] } }
+          ]),
         canBePrimary: (selection: CdTableSelection) => !selection.hasSelection
       },
       {
@@ -101,11 +132,7 @@ export class NvmeofNamespacesListComponent implements OnInit, OnChanges {
             BASE_URL,
             {
               outlets: {
-                modal: [
-                  URLVerbs.EDIT,
-                  this.selection.first().nqn,
-                  this.selection.first().max_namespaces
-                ]
+                modal: [URLVerbs.EDIT, this.subsystemNQN, 'namespace', this.selection.first().nsid]
               }
             }
           ])
@@ -136,15 +163,18 @@ export class NvmeofNamespacesListComponent implements OnInit, OnChanges {
   }
 
   deleteSubsystemModal() {
-    const subsystem = this.selection.first();
+    const namespace = this.selection.first();
     this.modalService.show(CriticalConfirmationModalComponent, {
-      itemDescription: 'Subsystem',
-      itemNames: [subsystem.nqn],
+      itemDescription: 'Namespace',
+      itemNames: [namespace.nsid],
       actionDescription: 'delete',
       submitActionObservable: () =>
         this.taskWrapper.wrapTaskAroundCall({
-          task: new FinishedTask('nvmeof/subsystem/delete', { nqn: subsystem.nqn }),
-          call: this.nvmeofService.deleteSubsystem(subsystem.nqn)
+          task: new FinishedTask('nvmeof/namespace/delete', {
+            nqn: this.subsystemNQN,
+            nsid: namespace.nsid
+          }),
+          call: this.nvmeofService.deleteNamespace(this.subsystemNQN, namespace.nsid)
         })
     });
   }

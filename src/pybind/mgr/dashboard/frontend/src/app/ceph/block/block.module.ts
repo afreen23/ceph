@@ -238,6 +238,7 @@ const routes: Routes = [
         component: NvmeofSubsystemsComponent,
         data: { breadcrumbs: 'Subsystems' },
         children: [
+          // subsystems
           { path: '', component: NvmeofSubsystemsComponent },
           {
             path: URLVerbs.CREATE,
@@ -247,6 +248,17 @@ const routes: Routes = [
           {
             path: `${URLVerbs.EDIT}/:subsystem_nqn/:max_ns`,
             component: NvmeofSubsystemsFormComponent,
+            outlet: 'modal'
+          },
+          // namespaces
+          {
+            path: `${URLVerbs.CREATE}/:subsystem_nqn/namespace`,
+            component: NvmeofNamespacesFormComponent,
+            outlet: 'modal'
+          },
+          {
+            path: `${URLVerbs.EDIT}/:subsystem_nqn/namespace/:nsid`,
+            component: NvmeofNamespacesFormComponent,
             outlet: 'modal'
           }
         ]

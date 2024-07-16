@@ -5,6 +5,16 @@ import _ from 'lodash';
 import { Observable, of as observableOf } from 'rxjs';
 import { catchError, mapTo } from 'rxjs/operators';
 
+export interface NamespaceCreateRequest {
+  rbd_image_name: string;
+  rbd_pool: string;
+  size: number;
+}
+
+export interface NamespaceEditRequest {
+  rbd_image_size: number;
+}
+
 const BASE_URL = 'api/nvmeof';
 
 @Injectable({
@@ -70,5 +80,27 @@ export class NvmeofService {
   // Namespaces
   listNamespaces(subsystemNQN: string) {
     return this.http.get(`${BASE_URL}/subsystem/${subsystemNQN}/namespace`);
+  }
+
+  getNamespace(subsystemNQN: string, nsid: string) {
+    return this.http.get(`${BASE_URL}/subsystem/${subsystemNQN}/namespace/${nsid}`);
+  }
+
+  createNamespace(subsystemNQN: string, request: NamespaceCreateRequest) {
+    return this.http.post(`${BASE_URL}/subsystem/${subsystemNQN}/namespace`, request, {
+      observe: 'response'
+    });
+  }
+
+  updateNamespace(subsystemNQN: string, nsid: string, request: NamespaceEditRequest) {
+    return this.http.patch(`${BASE_URL}/subsystem/${subsystemNQN}/namespace/${nsid}`, request, {
+      observe: 'response'
+    });
+  }
+
+  deleteNamespace(subsystemNQN: string, nsid: string) {
+    return this.http.delete(`${BASE_URL}/subsystem/${subsystemNQN}/namespace/${nsid}`, {
+      observe: 'response'
+    });
   }
 }
