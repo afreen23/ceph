@@ -638,6 +638,7 @@ TransactionManager::rewrite_extent_ret TransactionManager::rewrite_extent(
 
   assert(extent->is_valid() && !extent->is_initial_pending());
   if (extent->is_dirty()) {
+    assert(extent->get_version() > 0);
     if (epm->can_inplace_rewrite(t, extent)) {
       // FIXME: is_dirty() is true for mutation pending extents
       // which shouldn't do inplace rewrite because a pending transaction
@@ -652,9 +653,10 @@ TransactionManager::rewrite_extent_ret TransactionManager::rewrite_extent(
     extent->set_target_rewrite_generation(target_generation);
     ceph_assert(modify_time != NULL_TIME);
     extent->set_modify_time(modify_time);
+    assert(extent->get_version() == 0);
   }
 
-  t.get_rewrite_version_stats().increment(extent->get_version());
+  t.get_rewrite_stats().account(extent->get_version());
 
   if (is_backref_node(extent->get_type())) {
     DEBUGT("rewriting backref extent -- {}", t, *extent);
