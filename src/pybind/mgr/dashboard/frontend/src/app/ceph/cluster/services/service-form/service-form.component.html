@@ -110,37 +110,38 @@
              *ngIf="serviceForm.controls.service_type.value === 'nvmeof'">
           <label class="cd-col-form-label required"
                  for="group">
-            <span i18n>Group Name</span>
+            <span i18n>Gateway Group Name</span>
           </label>
           <div class="cd-col-form-input">
             <div class="input-group">
               <input id="group"
                      class="form-control"
                      type="text"
-                     formControlName="group"
-                     (change)="onNvmeofGroupChange($event.target.value)">
+                     formControlName="group">
             </div>
-            <cd-help-text i18n>
-              The name of the gateway group.
+            <cd-help-text i18n
+                          class="mt-5"
+                          *ngIf="serviceForm.controls.pool.value && serviceForm.controls.group.value">
+              This will create a service with name: <span class="font-monospace">nvmeof.{{serviceForm.controls.pool.value}}.{{serviceForm.controls.group.value}}</span>
             </cd-help-text>
             <span class="invalid-feedback"
-                  *ngIf="serviceForm.showError('service_id', frm, 'required')"
+                  *ngIf="serviceForm.showError('group', frm, 'required')"
                   i18n>This field is required.</span>
           </div>
         </div>
 
         <!-- Service id -->
         <div class="form-group row"
-             *ngIf="serviceForm.controls.service_type.value !== 'snmp-gateway'">
+             *ngIf="serviceForm.controls.service_type.value !== 'snmp-gateway' && serviceForm.controls.service_type.value !== 'nvmeof'">
           <label class="cd-col-form-label"
-                 [ngClass]="{'required': ['mds', 'rgw', 'nfs', 'iscsi', 'nvmeof', 'smb', 'ingress'].includes(serviceForm.controls.service_type.value)}"
-                 for="service_id">
+                 [ngClass]="{'required': ['mds', 'rgw', 'nfs', 'iscsi', 'smb', 'ingress'].includes(serviceForm.controls.service_type.value)}"
+                 [for]="service_id">
             <span i18n>Service Name</span>
           </label>
           <div class="cd-col-form-input">
             <div class="input-group">
               <span class="input-group-text"
-                    *ngIf="serviceForm.controls.service_type.value && ['mds', 'rgw', 'nfs', 'iscsi', 'nvmeof', 'smb', 'ingress'].includes(serviceForm.controls.service_type.value)"
+                    *ngIf="serviceForm.controls.service_type.value && ['mds', 'rgw', 'nfs', 'iscsi', 'smb', 'ingress'].includes(serviceForm.controls.service_type.value)"
                     for="userId"
                     i18n>{{serviceForm.controls.service_type.value}}.
               </span>

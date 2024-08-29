@@ -150,9 +150,6 @@ export class ServiceFormComponent extends CdForm implements OnInit {
             service_type: 'iscsi'
           }),
           CdValidators.requiredIf({
-            service_type: 'nvmeof'
-          }),
-          CdValidators.requiredIf({
             service_type: 'ingress'
           }),
           CdValidators.requiredIf({
@@ -486,7 +483,6 @@ export class ServiceFormComponent extends CdForm implements OnInit {
         this.onServiceTypeChange(this.serviceType);
       }
     });
-
     if (this.editing) {
       this.action = this.actionLabels.EDIT;
       this.disableForEditing(this.serviceType);
@@ -775,7 +771,7 @@ export class ServiceFormComponent extends CdForm implements OnInit {
     );
   }
 
-  setNvmeofServiceId(): void {
+  setNvmeofDefaultPool(): void {
     const defaultRbdPool: string = this.rbdPools?.find((p: Pool) => p.pool_name === 'rbd')
       ?.pool_name;
     if (defaultRbdPool) {
@@ -783,19 +779,13 @@ export class ServiceFormComponent extends CdForm implements OnInit {
     }
   }
 
-  onNvmeofGroupChange(groupName: string) {
-    this.serviceForm.get('service_id').setValue(groupName);
-  }
-
   requiresServiceId(serviceType: string) {
-    return ['mds', 'rgw', 'nfs', 'iscsi', 'nvmeof', 'smb', 'ingress'].includes(serviceType);
+    return ['mds', 'rgw', 'nfs', 'iscsi', 'smb', 'ingress'].includes(serviceType);
   }
 
   setServiceId(serviceId: string): void {
     const requiresServiceId: boolean = this.requiresServiceId(serviceId);
-    if (requiresServiceId && serviceId === 'nvmeof') {
-      this.setNvmeofServiceId();
-    } else if (requiresServiceId) {
+    if (requiresServiceId) {
       this.serviceForm.get('service_id').setValue(null);
     } else {
       this.serviceForm.get('service_id').setValue(serviceId);
@@ -813,6 +803,9 @@ export class ServiceFormComponent extends CdForm implements OnInit {
 
     if (selectedServiceType === 'rgw') {
       this.setRgwFields();
+    }
+    if (selectedServiceType === 'nvmeof') {
+      this.setNvmeofDefaultPool();
     }
   }
 
@@ -928,6 +921,7 @@ export class ServiceFormComponent extends CdForm implements OnInit {
       case 'nvmeof':
         serviceSpec['pool'] = values['pool'];
         serviceSpec['group'] = values['group'];
+        serviceSpec['service_id'] = `${serviceSpec['pool']}.${serviceSpec['group']}`
         break;
       case 'iscsi':
         serviceSpec['pool'] = values['pool'];

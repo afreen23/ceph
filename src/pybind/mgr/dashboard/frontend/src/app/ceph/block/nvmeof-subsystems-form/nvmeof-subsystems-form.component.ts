@@ -68,8 +68,8 @@ export class NvmeofSubsystemsFormComponent implements OnInit {
           CdValidators.unique(this.nvmeofService.isSubsystemPresent, this.nvmeofService)
         ]
       }),
-      max_namespaces: new UntypedFormControl(256, {
-        validators: [CdValidators.number(false), Validators.max(256), Validators.min(1)]
+      max_namespaces: new UntypedFormControl(1024, {
+        validators: [CdValidators.number(false), Validators.max(1024), Validators.min(1)]
       })
     });
   }
