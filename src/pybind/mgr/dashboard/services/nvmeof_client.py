@@ -22,7 +22,7 @@ else:
     class NVMeoFClient(object):
         pb2 = pb2
 
-        def __init__(self, gw_group: Optional[str] = None):
+        def __init__(self, gw_group: Optional[str] = None, traddr: Optional[str] = None):
             logger.info("Initiating nvmeof gateway connection...")
             try:
                 if not gw_group:
@@ -35,6 +35,19 @@ else:
                 raise DashboardException(
                     f'Unable to retrieve the gateway info: {e}'
                 )
+
+            # While creating listener need to direct request to the gateway
+            # address where listener is supposed to be added.
+            if traddr:
+                gateways_info = NvmeofGatewaysConfig.get_gateways_config()
+                matched_instance = next(
+                    filter(lambda instance: traddr in instance['service_url'],
+                        (instance for instances in gateways_info['gateways'].values() for instance in instances)),
+                    None
+                )
+                if matched_instance:
+                    self.gateway_addr = matched_instance['service_url']
+                    logger.info(f"Gateway address set to: {self.gateway_addr}")
 
             root_ca_cert = NvmeofGatewaysConfig.get_root_ca_cert(service_name)
             if root_ca_cert:
