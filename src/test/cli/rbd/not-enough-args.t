@@ -197,7 +197,7 @@
   rbd: image name was not specified
   [22]
   $ rbd mirror pool enable rbd
-  rbd: mirror mode was not specified
+  rbd: must specify 'image' or 'pool' mode.
   [22]
   $ rbd mirror pool peer add rbd
   rbd: remote cluster was not specified
