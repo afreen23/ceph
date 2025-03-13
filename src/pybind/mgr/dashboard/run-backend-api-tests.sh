@@ -22,7 +22,7 @@ if [[ "$1" = "-h" || "$1" = "--help" ]]; then
 	echo "Example:"
 	echo -e "\t./run-backend-api-tests.sh tasks.mgr.dashboard.test_pool.DashboardTest"
 	echo
-	echo "Or source this script. This allows to re-run tests faster:"
+	echo "Or source this script. This allows to re-run tests faster:"s
 	echo -e "\tsource run-backend-api-tests.sh"
 	echo -e "\trun_teuthology_tests [tests]..."
 	echo -e "\tcleanup_teuthology"
@@ -46,7 +46,7 @@ setup_teuthology() {
 
     ${TEUTHOLOGY_PYTHON_BIN:-/usr/bin/python3} -m venv venv
     source venv/bin/activate
-    pip install -U pip 'setuptools>=12,<60'
+    pip install -r requirements-tests-api.txt
     pip install "git+https://github.com/ceph/teuthology@2ef0dcd#egg=teuthology[test]"
     pushd $CURR_DIR
     pip install -r requirements.txt -c constraints.txt
