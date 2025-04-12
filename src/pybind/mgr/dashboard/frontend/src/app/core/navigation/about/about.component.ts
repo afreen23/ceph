@@ -5,7 +5,8 @@ import { detect } from 'detect-browser';
 import { Subscription } from 'rxjs';
 
 import { UserService } from '~/app/shared/api/user.service';
-import { AppConstants } from '~/app/shared/constants/app.constants';
+import { AppConstants, USER, VERSION_PREFIX } from '~/app/shared/constants/app.constants';
+import { LocalStorage } from '~/app/shared/enum/local-storage-enum';
 import { Permission } from '~/app/shared/models/permissions';
 import { AuthStorageService } from '~/app/shared/services/auth-storage.service';
 import { SummaryService } from '~/app/shared/services/summary.service';
@@ -17,9 +18,6 @@ import { SummaryService } from '~/app/shared/services/summary.service';
 })
 export class AboutComponent implements OnInit, OnDestroy {
   modalVariables: any;
-  versionNumber: string;
-  versionHash: string;
-  versionName: string;
   subs: Subscription;
   userPermission: Permission;
   projectConstants: typeof AppConstants;
@@ -41,7 +39,9 @@ export class AboutComponent implements OnInit, OnDestroy {
     this.hostAddr = window.location.hostname;
     this.modalVariables = this.setVariables();
     this.subs = this.summaryService.subscribe((summary) => {
-      this.versionNumber = summary.version.startsWith('ceph version') ? summary.version.replace('ceph version ', '').split(' ')[0] : summary.version;
+      this.version = summary.version.startsWith(VERSION_PREFIX)
+        ? summary.version.replace(VERSION_PREFIX, '').split(' ')[0]
+        : summary.version;
       this.hostAddr = summary.mgr_host.replace(/(^\w+:|^)\/\//, '').replace(/\/$/, '');
     });
   }
@@ -52,17 +52,17 @@ export class AboutComponent implements OnInit, OnDestroy {
 
   setVariables() {
     const project = {} as any;
-    project.user = localStorage.getItem('dashboard_username');
-    project.role = 'user';
+    project.user = localStorage.getItem(LocalStorage.DASHBOARD_USRENAME);
+    project.role = USER;
     if (this.userPermission.read) {
       this.userService.get(project.user).subscribe((data: any) => {
         project.role = data.roles;
       });
     }
     const browser = detect();
-    project.browserName = browser && browser.name ? browser.name : 'Not detected';
-    project.browserVersion = browser && browser.version ? browser.version : 'Not detected';
-    project.browserOS = browser && browser.os ? browser.os : 'Not detected';
+    project.browserName = browser && browser.name ? browser.name : $localize`Not detected`;
+    project.browserVersion = browser && browser.version ? browser.version : $localize`Not detected`;
+    project.browserOS = browser && browser.os ? browser.os : $localize`Not detected`;
     return project;
   }
 }
