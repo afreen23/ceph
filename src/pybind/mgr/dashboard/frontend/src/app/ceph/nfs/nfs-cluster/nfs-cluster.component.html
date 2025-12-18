@@ -1,8 +1,9 @@
-@if (orchStatus?.available && clusters$ | async; as clusters) {
+@if (orchStatus?.available) {
   <cd-table
     headerTitle="Service clusters"
     [autoReload]="true"
-    [data]="clusters"
+    [data]="clusters$ | async"
+    identifier="name"
     columnMode="flex"
     [columns]="columns"
     selectionType="single"
@@ -13,5 +14,11 @@
     (fetchData)="loadData()"
     (updateSelection)="updateSelection($event)"
   >
+    <cd-table-actions
+      class="table-actions"
+      [selection]="selection"
+      [permission]="permission"
+      [tableActions]="tableActions"
+    ></cd-table-actions>
   </cd-table>
 }
