@@ -7,8 +7,10 @@
                            [showBreadcrumbs]="showHeaderBreadcrumbs">
   </cd-page-header-resource>
 }
+
 <div class="sidebar-layout-container sidebar-layout--full">
   <div class="sidebar-layout-shell">
+    @if (showSidebar) {
     <cds-sidenav
       [expanded]="true"
       class="sidebar-layout-nav">
@@ -22,8 +24,12 @@
       </cds-sidenav-item>
       }
     </cds-sidenav>
+    }
 
-    <main class="sidebar-layout-main">
+    <main
+      class="sidebar-layout-main"
+      [class.no-sidebar]="!showSidebar"
+    >
       <router-outlet></router-outlet>
     </main>
   </div>
