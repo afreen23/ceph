@@ -46,7 +46,8 @@ import {
   ThemeModule,
   MenuButtonModule,
   ContextMenuModule,
-  BreadcrumbModule
+  BreadcrumbModule,
+  SkeletonModule
 } from 'carbon-components-angular';
 import EditIcon from '@carbon/icons/es/edit/16';
 import CodeIcon from '@carbon/icons/es/code/16';
@@ -192,7 +193,8 @@ import { OverviewComponent } from './resource-overview-card/resource-overview-ca
     ThemeModule,
     MenuButtonModule,
     ContextMenuModule,
-    BreadcrumbModule
+    BreadcrumbModule,
+    SkeletonModule
   ],
   declarations: [
     SparklineComponent,
