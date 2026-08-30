@@ -16,6 +16,7 @@ import { SmbService } from '~/app/shared/api/smb.service';
 import { SMBUsersGroups } from '../smb.model';
 import { Router } from '@angular/router';
 import { Icons } from '~/app/shared/enum/icons.enum';
+import { CellTemplate } from '~/app/shared/enum/cell-template.enum';
 import { CdTableSelection } from '~/app/shared/models/cd-table-selection';
 import { URLBuilderService } from '~/app/shared/services/url-builder.service';
 import { DeleteConfirmationModalComponent } from '~/app/shared/components/delete-confirmation-modal/delete-confirmation-modal.component';
@@ -78,7 +79,11 @@ export class SmbUsersgroupsListComponent extends ListWithDetails implements OnIn
       {
         name: $localize`Linked to cluster`,
         prop: 'linked_to_cluster',
-        flexGrow: 2
+        flexGrow: 2,
+        cellTransformation: CellTemplate.redirect,
+        customTemplateConfig: {
+          redirectLink: ['/cephfs/smb/cluster']
+        }
       }
     ];
 
