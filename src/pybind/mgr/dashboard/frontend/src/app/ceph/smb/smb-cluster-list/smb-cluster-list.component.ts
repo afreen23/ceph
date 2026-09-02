@@ -1,10 +1,11 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, inject, OnInit, ViewChild } from '@angular/core';
 import { catchError, switchMap } from 'rxjs/operators';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 
 import _ from 'lodash';
 
 import { ActionLabelsI18n, URLVerbs } from '~/app/shared/constants/app.constants';
+import { SMB_CONTEXT, SmbContext } from '~/app/shared/constants/smb.constant';
 import { TableComponent } from '~/app/shared/datatable/table/table.component';
 import { CdTableAction } from '~/app/shared/models/cd-table-action';
 import { CdTableColumn } from '~/app/shared/models/cd-table-column';
@@ -24,16 +25,22 @@ import { DeleteConfirmationModalComponent } from '~/app/shared/components/delete
 import { TaskWrapperService } from '~/app/shared/services/task-wrapper.service';
 import { FinishedTask } from '~/app/shared/models/finished-task';
 
-export const CLUSTER_PATH = 'cephfs/smb/cluster';
-
 @Component({
   selector: 'cd-smb-cluster-list',
   templateUrl: './smb-cluster-list.component.html',
   styleUrls: ['./smb-cluster-list.component.scss'],
-  providers: [{ provide: URLBuilderService, useValue: new URLBuilderService(CLUSTER_PATH) }],
+  providers: [
+    {
+      provide: URLBuilderService,
+      useFactory: (ctx: SmbContext) => new URLBuilderService(`${ctx.basePath}/cluster`),
+      deps: [SMB_CONTEXT]
+    }
+  ],
   standalone: false
 })
 export class SmbClusterListComponent extends ListWithDetails implements OnInit {
+  private readonly ctx = inject(SMB_CONTEXT);
+  private readonly clusterPath = `${this.ctx.basePath}/cluster`;
   @ViewChild('table', { static: true })
   table: TableComponent;
   columns: CdTableColumn[];
@@ -120,7 +127,7 @@ export class SmbClusterListComponent extends ListWithDetails implements OnInit {
       itemNames: [cluster_id],
       submitActionObservable: () =>
         this.taskWrapper.wrapTaskAroundCall({
-          task: new FinishedTask(`${CLUSTER_PATH}/${URLVerbs.DELETE}`, {
+          task: new FinishedTask(`${this.clusterPath}/${URLVerbs.DELETE}`, {
             cluster_id: cluster_id
           }),
           call: this.smbService.removeCluster(cluster_id)

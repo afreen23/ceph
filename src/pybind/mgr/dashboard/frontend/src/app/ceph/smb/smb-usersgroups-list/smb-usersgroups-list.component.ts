@@ -1,10 +1,11 @@
-import { Component, OnInit, TemplateRef, ViewChild } from '@angular/core';
+import { Component, inject, OnInit, TemplateRef, ViewChild } from '@angular/core';
 import { catchError, switchMap } from 'rxjs/operators';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 
 import _ from 'lodash';
 
 import { ActionLabelsI18n, URLVerbs } from '~/app/shared/constants/app.constants';
+import { SMB_CONTEXT, SmbContext } from '~/app/shared/constants/smb.constant';
 import { CdTableAction } from '~/app/shared/models/cd-table-action';
 import { CdTableColumn } from '~/app/shared/models/cd-table-column';
 import { CdTableFetchDataContext } from '~/app/shared/models/cd-table-fetch-data-context';
@@ -24,16 +25,22 @@ import { FinishedTask } from '~/app/shared/models/finished-task';
 import { ModalCdsService } from '~/app/shared/services/modal-cds.service';
 import { TaskWrapperService } from '~/app/shared/services/task-wrapper.service';
 
-export const USERSGROUPS_PATH = 'cephfs/smb/standalone';
-
 @Component({
   selector: 'cd-smb-users-list',
   templateUrl: './smb-usersgroups-list.component.html',
   styleUrls: ['./smb-usersgroups-list.component.scss'],
-  providers: [{ provide: URLBuilderService, useValue: new URLBuilderService(USERSGROUPS_PATH) }],
+  providers: [
+    {
+      provide: URLBuilderService,
+      useFactory: (ctx: SmbContext) => new URLBuilderService(`${ctx.basePath}/standalone`),
+      deps: [SMB_CONTEXT]
+    }
+  ],
   standalone: false
 })
 export class SmbUsersgroupsListComponent extends ListWithDetails implements OnInit {
+  private readonly ctx = inject(SMB_CONTEXT);
+  private readonly usersGroupsPath = `${this.ctx.basePath}/standalone`;
   @ViewChild('groupsNamesTpl', { static: true })
   groupsNamesTpl: TemplateRef<any>;
   columns: CdTableColumn[];
@@ -82,7 +89,7 @@ export class SmbUsersgroupsListComponent extends ListWithDetails implements OnIn
         flexGrow: 2,
         cellTransformation: CellTemplate.redirect,
         customTemplateConfig: {
-          redirectLink: ['/cephfs/smb/cluster']
+          redirectLink: [`/${this.ctx.basePath}/cluster`]
         }
       }
     ];
@@ -136,7 +143,7 @@ export class SmbUsersgroupsListComponent extends ListWithDetails implements OnIn
       itemNames: [usersGroupsId],
       submitActionObservable: () =>
         this.taskWrapper.wrapTaskAroundCall({
-          task: new FinishedTask(`${USERSGROUPS_PATH}/${URLVerbs.DELETE}`, {
+          task: new FinishedTask(`${this.usersGroupsPath}/${URLVerbs.DELETE}`, {
             usersGroupsId: usersGroupsId
           }),
           call: this.smbService.deleteUsersgroups(usersGroupsId)
