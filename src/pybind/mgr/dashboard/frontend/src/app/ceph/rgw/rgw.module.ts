@@ -116,6 +116,8 @@ import { RgwBucketLifecycleListComponent } from './rgw-bucket-lifecycle-list/rgw
 import { RgwRateLimitComponent } from './rgw-rate-limit/rgw-rate-limit.component';
 import { RgwRateLimitDetailsComponent } from './rgw-rate-limit-details/rgw-rate-limit-details.component';
 import { NfsClusterComponent } from '../nfs/nfs-cluster/nfs-cluster.component';
+import { SmbModule } from '../smb/smb.module';
+import { smbParentRoute } from '../smb/smb.routes';
 import { RgwTopicListComponent } from './rgw-topic-list/rgw-topic-list.component';
 import { RgwTopicDetailsComponent } from './rgw-topic-details/rgw-topic-details.component';
 import { RgwTopicFormComponent } from './rgw-topic-form/rgw-topic-form.component';
@@ -167,7 +169,8 @@ import { RgwAccountRoleFormComponent } from './rgw-account-role-form/rgw-account
     ProductiveCardComponent,
     TimePickerComponent,
     AreaChartComponent,
-    ComponentsModule
+    ComponentsModule,
+    SmbModule
   ],
   exports: [
     RgwDaemonDetailsComponent,
@@ -408,6 +411,7 @@ const routes: Routes = [
       }
     ]
   },
+  smbParentRoute(true, 'SMB'),
   {
     path: 'configuration',
     data: { breadcrumbs: 'Configuration' },
