@@ -1,12 +1,13 @@
 
 from typing import List, Optional
 
+from ..security import Scope
 from ..services.hardware import HardwareService
-from . import APIDoc, APIRouter, EndpointDoc, RESTController
+from . import APIDoc, APIRouter, EndpointDoc, Param, RESTController
 from ._version import APIVersion
 
 
-@APIRouter('/hardware')
+@APIRouter('/hardware', Scope.HOSTS)
 @APIDoc("Hardware management API", "Hardware")
 class Hardware(RESTController):
 
@@ -28,3 +29,29 @@ class HardwareCompression(RESTController):
     @EndpointDoc("Retrieve cluster-wide FCM hardware compression statistics")
     def list(self):
         return HardwareService.get_compression()
+
+
+@APIRouter('/hardware/hosts', Scope.HOSTS)
+@APIDoc("Hardware hosts API", "Hardware")
+class HardwareHosts(RESTController):
+
+    @EndpointDoc(
+        "List all hosts with hardware health summary, paginated.",
+        parameters={
+            'offset': Param(int, 'Offset into the host list (0-based)', True, 0),
+            'limit': Param(int, 'Number of hosts to return (-1 for all)', True, 5),
+            'sort': Param(str, 'Sort field, prefix with - for descending', True, ''),
+            'search': Param(str, 'Search string to filter hosts by hostname', True, ''),
+        }
+    )
+    def list(self, offset: int = 0, limit: int = 5, sort: str = '', search: str = ''):
+        return HardwareService.get_hosts(int(offset), int(limit), sort, search)
+
+    @EndpointDoc(
+        "Get full hardware detail for a single host, with per-component data for all categories.",
+        parameters={
+            'hostname': Param(str, 'The name of the host to retrieve hardware detail for', False),
+        }
+    )
+    def get(self, hostname: str):
+        return HardwareService.get_host_detail(hostname)
