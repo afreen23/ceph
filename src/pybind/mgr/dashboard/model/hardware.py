@@ -18,7 +18,7 @@ from collections import Counter
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
-from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict, cast
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple, TypedDict, Union, cast
 
 
 class Health(str, Enum):
@@ -82,6 +82,15 @@ class ComponentStatusReport(TypedDict, total=False):
     state: str         # "Enabled", "Disabled", "UnavailableOffline", etc.
 
 
+class PartLocationReport(TypedDict, total=False):
+    locationordinalvalue: int
+    locationtype: str     # "Slot", "Bay", ...
+
+
+class PhysicalLocationReport(TypedDict, total=False):
+    partlocation: PartLocationReport
+
+
 class ComponentReport(TypedDict, total=False):
     """Fields a component may carry; which ones are present depends on the BMC.
 
@@ -107,11 +116,32 @@ class ComponentReport(TypedDict, total=False):
     processor_type: str
     memory_device_type: str
     capacity_mi_b: int
-    physical_location: Dict[str, Any]
+    physical_location: PhysicalLocationReport
 
 
 # chassis_id -> component_id -> ComponentReport
 CategoryReport = Dict[str, Dict[str, ComponentReport]]
+
+
+class FcmDriveReport(TypedDict, total=False):
+    """An FCM (compressing) drive, see ceph_node_proxy.fcm_stats."""
+    device: str
+    model: str
+    serial_number: str
+    valid: bool
+    phy_size_bytes: int
+    phy_util_bytes: int
+    log_size_bytes: int
+    log_util_bytes: int
+    phy_util_percent: float
+    log_util_percent: float
+    compression_ratio: float
+    savings_bytes: int
+    status: ComponentStatusReport
+
+
+# chassis_id -> device -> FcmDriveReport
+FcmCategoryReport = Dict[str, Dict[str, FcmDriveReport]]
 
 
 class StatusReport(TypedDict, total=False):
@@ -122,7 +152,7 @@ class StatusReport(TypedDict, total=False):
     power: CategoryReport
     fans: CategoryReport
     temperatures: CategoryReport
-    fcm: CategoryReport
+    fcm: FcmCategoryReport
 
 
 class FirmwareReport(TypedDict, total=False):
@@ -144,6 +174,104 @@ class _HostReportRequired(TypedDict):
 class HostReport(_HostReportRequired, total=False):
     firmware: Dict[str, FirmwareReport]
     firmwares: Dict[str, FirmwareReport]  # sent by older node-proxy versions
+
+
+# What the orchestrator's node_proxy_fullreport() returns: hostname -> HostReport
+FullReport = Dict[str, HostReport]
+
+
+# ---------------------------------------------------------------------------
+# API responses: what the models serialize to
+# ---------------------------------------------------------------------------
+
+class _ComponentDictRequired(TypedDict):
+    id: str
+    chassis_id: str
+    health: Health
+    state: str
+
+
+class ComponentDict(_ComponentDictRequired, total=False):
+    # Present when the category exposes the field and the BMC reported it,
+    # see CATEGORY_FIELDS.
+    name: str
+    description: str
+    model: str
+    manufacturer: str
+    serial_number: str
+    protocol: str
+    capacity_bytes: int
+    firmware_version: str
+    slot: Optional[int]
+    total_cores: int
+    total_threads: int
+    processor_type: str
+    memory_device_type: str
+    capacity_mi_b: int
+    speed_mbps: int
+    physical_context: str
+    reading: float
+    reading_units: str
+
+
+class CategoryDict(TypedDict):
+    health: Health
+    total: int
+    ok: int
+    warning: int
+    critical: int
+    components: List[ComponentDict]
+
+
+class HardwareStatusDict(TypedDict):
+    storage: CategoryDict
+    processors: CategoryDict
+    memory: CategoryDict
+    network: CategoryDict
+    power: CategoryDict
+    fans: CategoryDict
+    temperatures: CategoryDict
+
+
+class HostHardwareDict(TypedDict):
+    hostname: str
+    sn: str
+    health: Health
+    status: HardwareStatusDict
+    firmware: Dict[str, str]
+
+
+class HealthCounts(TypedDict):
+    total: int
+    ok: int
+    warn: int
+    critical: int
+
+
+class SummaryTotals(TypedDict):
+    category: Dict[str, HealthCounts]
+    total: HealthCounts
+
+
+class HostFlawed(TypedDict):
+    flawed: bool
+
+
+class HardwareSummary(TypedDict):
+    """GET /api/hardware/summary, see HardwareSummary in frontend hardware.enum.ts."""
+    total: SummaryTotals
+    # hostname -> HostFlawed, plus 'flawed' -> number of flawed hosts
+    host: Dict[str, Union[HostFlawed, int]]
+
+
+class CompressionStats(TypedDict):
+    """GET /api/hardware/compression"""
+    fcm_drive_count: int
+    phy_util_percent: Optional[float]
+    log_util_percent: Optional[float]
+    savings_bytes: Optional[int]
+    compression_ratio: Optional[float]
+    efficiency_percent: Optional[float]
 
 # pylint: enable=inherit-non-class
 
@@ -208,14 +336,15 @@ class Component:
         except (KeyError, TypeError):
             return None
 
-    def to_dict(self, fields: Sequence[str]) -> Dict[str, Any]:
-        report = cast(Dict[str, Any], self.report)
-        data: Dict[str, Any] = {'id': self.id, 'chassis_id': self.chassis_id}
-        data.update((field, report[field]) for field in fields if field in report)
+    def to_dict(self, fields: Sequence[str]) -> ComponentDict:
+        data = ComponentDict(id=self.id, chassis_id=self.chassis_id,
+                             health=self.health, state=self.state)
+        # Fields are picked by name at runtime, which a TypedDict cannot express.
+        report = cast(Mapping[str, object], self.report)
+        cast(Dict[str, object], data).update(
+            (field, report[field]) for field in fields if field in report)
         if 'slot' in fields:
             data['slot'] = self.slot
-        data['health'] = self.health
-        data['state'] = self.state
         return data
 
 
@@ -247,16 +376,16 @@ class Category:
     def total(self) -> int:
         return len(self.components)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> CategoryDict:
         fields = CATEGORY_FIELDS[self.name]
-        return {
-            'health': self.health,
-            'total': self.total,
-            'ok': self._counts[Health.OK],
-            'warning': self._counts[Health.WARNING],
-            'critical': self._counts[Health.CRITICAL],
-            'components': [component.to_dict(fields) for component in self.components],
-        }
+        return CategoryDict(
+            health=self.health,
+            total=self.total,
+            ok=self._counts[Health.OK],
+            warning=self._counts[Health.WARNING],
+            critical=self._counts[Health.CRITICAL],
+            components=[component.to_dict(fields) for component in self.components],
+        )
 
 
 @dataclass
@@ -289,14 +418,17 @@ class HostHardware:
         """Worst health across all categories."""
         return _worst([category.health for category in self.status.values()])
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'hostname': self.hostname,
-            'sn': self.sn,
-            'health': self.health,
-            'status': {name: category.to_dict() for name, category in self.status.items()},
-            'firmware': self.firmware,
-        }
+    def to_dict(self) -> HostHardwareDict:
+        # One CategoryDict per CATEGORY_FIELDS entry, i.e. per HardwareStatusDict key.
+        status = cast(HardwareStatusDict, {
+            name: category.to_dict() for name, category in self.status.items()})
+        return HostHardwareDict(
+            hostname=self.hostname,
+            sn=self.sn,
+            health=self.health,
+            status=status,
+            firmware=self.firmware,
+        )
 
 
 def _firmware_versions(report: Dict[str, FirmwareReport]) -> Dict[str, str]:

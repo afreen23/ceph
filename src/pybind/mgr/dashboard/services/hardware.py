@@ -1,10 +1,12 @@
 import logging
-from typing import Any, Dict, List, Optional
+from collections import Counter
+from typing import Dict, Iterable, List, Optional, Union
 
 from orchestrator import OrchestratorError
 
 from ..exceptions import DashboardException
-from ..model.hardware import CategoryReport, ComponentReport, Health
+from ..model.hardware import Category, Component, CompressionStats, \
+    HardwareSummary, Health, HealthCounts, HostFlawed, SummaryTotals
 from ..services.orchestrator import OrchClient
 
 logger = logging.getLogger('services.hardware')
@@ -14,91 +16,34 @@ class HardwareService(object):
 
     @staticmethod
     def get_summary(categories: Optional[List[str]] = None,
-                    hostname: Optional[List[str]] = None) -> Dict[str, Any]:
-        total_count = {'total': 0, 'ok': 0, 'warn': 0, 'critical': 0}
+                    hostname: Optional[List[str]] = None) -> HardwareSummary:
+        """
+        Health counts per category across the given hosts (all by default),
+        and which hosts have any component that is not OK.
+        """
+        hardware = OrchClient.instance().hardware
+        per_category: Dict[str, HealthCounts] = {}
+        host_flawed: Dict[str, bool] = {}
+        for name in HardwareService.validate_categories(categories):
+            components: List[Component] = []
+            for host, report in hardware.common(name, hostname).items():
+                category = Category.from_orch_report(name, report)
+                components.extend(category.components)
+                host_flawed[host] = host_flawed.get(host, False) or any(
+                    component.health != Health.OK for component in category.components)
+            per_category[name] = _health_counts(components)
 
-        output: Dict[str, Any] = {
-            'total': {
-                'category': {},
-                'total': {}
-            },
-            'host': {
-                'flawed': 0
-            }
-        }
-
-        def _get_health(component: ComponentReport) -> str:
-            if not isinstance(component, dict):
-                return Health.UNKNOWN
-            status_val = component.get('status', {})
-            if isinstance(status_val, dict):
-                return status_val.get('health', Health.UNKNOWN)
-            if isinstance(status_val, str):
-                return status_val
-            return Health.UNKNOWN
-
-        def count_by_health(data: Dict[str, CategoryReport]) -> Dict[str, int]:
-            counts = {'ok': 0, 'warn': 0, 'critical': 0}
-            for node in data.values():
-                for system in node.values():
-                    for component in system.values():
-                        health = _get_health(component)
-                        if health == Health.OK:
-                            counts['ok'] += 1
-                        elif health == Health.WARNING:
-                            counts['warn'] += 1
-                        elif health == Health.CRITICAL:
-                            counts['critical'] += 1
-            return counts
-
-        def count_total(data: Dict[str, CategoryReport]) -> int:
-            return sum(
-                len(component)
-                for system in data.values()
-                for component in system.values()
-            )
-
-        categories = HardwareService.validate_categories(categories)
-
-        orch_hardware_instance = OrchClient.instance().hardware
-        for category in categories:
-            data = orch_hardware_instance.common(category, hostname)
-            health_counts = count_by_health(data)
-            category_total = {
-                'total': count_total(data),
-                'ok': health_counts['ok'],
-                'warn': health_counts['warn'],
-                'critical': health_counts['critical']
-            }
-
-            for host, systems in data.items():
-                output['host'].setdefault(host, {'flawed': False})
-                if not output['host'][host]['flawed']:
-                    for system in systems.values():
-                        if any(_get_health(comp) != Health.OK
-                               for comp in system.values()):
-                            output['host'][host]['flawed'] = True
-                            break
-
-            output['total']['category'].setdefault(category, {})
-            output['total']['category'][category] = category_total
-
-            total_count['total'] += category_total['total']
-            total_count['ok'] += category_total['ok']
-            total_count['warn'] += category_total['warn']
-            total_count['critical'] += category_total['critical']
-
-        output['total']['total'] = total_count
-
-        output['host']['flawed'] = sum(
-            1 for host in output['host']
-            if host != 'flawed' and output['host'][host]['flawed']
+        hosts: Dict[str, Union[HostFlawed, int]] = {
+            host: HostFlawed(flawed=flawed) for host, flawed in host_flawed.items()}
+        hosts['flawed'] = sum(host_flawed.values())
+        return HardwareSummary(
+            total=SummaryTotals(category=per_category,
+                                total=_sum_health_counts(per_category.values())),
+            host=hosts,
         )
 
-        return output
-
     @staticmethod
-    def get_compression() -> Dict[str, Any]:
+    def get_compression() -> CompressionStats:
         """
         GET /api/hardware/compression -- cluster-wide FCM hardware compression stats.
 
@@ -114,17 +59,17 @@ class HardwareService(object):
         MIN_PHY_UTIL_BYTES = 107_374_182_400  # 100 GiB
 
         try:
-            fcm_data = OrchClient.instance().hardware.common('fcm')
+            fcm_data = OrchClient.instance().hardware.fcm()
         except OrchestratorError as e:
             logger.error("Failed to retrieve FCM data: %s", e)
-            return {
-                'fcm_drive_count': 0,
-                'phy_util_percent': None,
-                'log_util_percent': None,
-                'savings_bytes': None,
-                'compression_ratio': None,
-                'efficiency_percent': None,
-            }
+            return CompressionStats(
+                fcm_drive_count=0,
+                phy_util_percent=None,
+                log_util_percent=None,
+                savings_bytes=None,
+                compression_ratio=None,
+                efficiency_percent=None,
+            )
 
         total_phy_util_bytes = 0
         total_log_util_bytes = 0
@@ -144,14 +89,14 @@ class HardwareService(object):
                     total_phy_size_bytes += drive.get('phy_size_bytes') or 0
 
         if fcm_drive_count == 0:
-            return {
-                'fcm_drive_count': 0,
-                'phy_util_percent': None,
-                'log_util_percent': None,
-                'savings_bytes': None,
-                'compression_ratio': None,
-                'efficiency_percent': None,
-            }
+            return CompressionStats(
+                fcm_drive_count=0,
+                phy_util_percent=None,
+                log_util_percent=None,
+                savings_bytes=None,
+                compression_ratio=None,
+                efficiency_percent=None,
+            )
 
         phy_util_percent = round(
             (total_phy_util_bytes / total_phy_size_bytes) * 100, 2
@@ -159,14 +104,14 @@ class HardwareService(object):
 
         # Gate ratio/savings/efficiency on minimum physical utilisation.
         if total_phy_util_bytes < MIN_PHY_UTIL_BYTES:
-            return {
-                'fcm_drive_count': fcm_drive_count,
-                'phy_util_percent': phy_util_percent,
-                'log_util_percent': None,
-                'savings_bytes': None,
-                'compression_ratio': None,
-                'efficiency_percent': None,
-            }
+            return CompressionStats(
+                fcm_drive_count=fcm_drive_count,
+                phy_util_percent=phy_util_percent,
+                log_util_percent=None,
+                savings_bytes=None,
+                compression_ratio=None,
+                efficiency_percent=None,
+            )
 
         compression_ratio = (
             round(total_log_util_bytes / total_phy_util_bytes, 2)
@@ -182,14 +127,14 @@ class HardwareService(object):
             if total_phy_size_bytes else None
         )
 
-        return {
-            'fcm_drive_count': fcm_drive_count,
-            'phy_util_percent': phy_util_percent,
-            'log_util_percent': log_util_percent,
-            'savings_bytes': savings_bytes,
-            'compression_ratio': compression_ratio,
-            'efficiency_percent': efficiency_percent,
-        }
+        return CompressionStats(
+            fcm_drive_count=fcm_drive_count,
+            phy_util_percent=phy_util_percent,
+            log_util_percent=log_util_percent,
+            savings_bytes=savings_bytes,
+            compression_ratio=compression_ratio,
+            efficiency_percent=efficiency_percent,
+        )
 
     @staticmethod
     def validate_categories(categories: Optional[List[str]]) -> List[str]:
@@ -210,3 +155,18 @@ class HardwareService(object):
             )
 
         return categories
+
+
+def _health_counts(components: List[Component]) -> HealthCounts:
+    counts = Counter(component.health for component in components)
+    return HealthCounts(total=len(components), ok=counts[Health.OK],
+                        warn=counts[Health.WARNING], critical=counts[Health.CRITICAL])
+
+
+def _sum_health_counts(counts: Iterable[HealthCounts]) -> HealthCounts:
+    total = HealthCounts(total=0, ok=0, warn=0, critical=0)
+    for c in counts:
+        total = HealthCounts(total=total['total'] + c['total'], ok=total['ok'] + c['ok'],
+                             warn=total['warn'] + c['warn'],
+                             critical=total['critical'] + c['critical'])
+    return total

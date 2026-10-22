@@ -669,3 +669,46 @@ class HardwareManagerFullreportTest(unittest.TestCase):
         with mock.patch.object(HardwareManager, '_fullreport', return_value={'host1': {}}):
             with self.assertRaises(HardwareNoReport):
                 manager.fullreport('host1')
+
+
+class HardwareCompressionTest(unittest.TestCase):
+    GIB = 1024 ** 3
+
+    def _drive(self, phy_util, log_util, phy_size):
+        return {'phy_util_bytes': phy_util, 'log_util_bytes': log_util,
+                'phy_size_bytes': phy_size}
+
+    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    def test_no_fcm_drives(self, mock_instance):
+        mock_instance.return_value.hardware.fcm.return_value = {}
+        stats = HardwareService.get_compression()
+        self.assertEqual(stats['fcm_drive_count'], 0)
+        self.assertIsNone(stats['compression_ratio'])
+
+    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    def test_ratio_and_savings(self, mock_instance):
+        drive = self._drive(200 * self.GIB, 400 * self.GIB, 1000 * self.GIB)
+        mock_instance.return_value.hardware.fcm.return_value = {
+            'host1': {'1': {'nvme0': drive}}}
+        stats = HardwareService.get_compression()
+        self.assertEqual(stats['fcm_drive_count'], 1)
+        self.assertEqual(stats['compression_ratio'], 2.0)
+        self.assertEqual(stats['savings_bytes'], 200 * self.GIB)
+        self.assertEqual(stats['efficiency_percent'], 50.0)
+        self.assertEqual(stats['phy_util_percent'], 20.0)
+
+    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    def test_small_usage_hides_ratio(self, mock_instance):
+        # Below 100 GiB physically used, ratio/savings are not meaningful yet.
+        drive = self._drive(10 * self.GIB, 20 * self.GIB, 1000 * self.GIB)
+        mock_instance.return_value.hardware.fcm.return_value = {
+            'host1': {'1': {'nvme0': drive}}}
+        stats = HardwareService.get_compression()
+        self.assertEqual(stats['fcm_drive_count'], 1)
+        self.assertEqual(stats['phy_util_percent'], 1.0)
+        self.assertIsNone(stats['compression_ratio'])
+
+    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    def test_orchestrator_error(self, mock_instance):
+        mock_instance.return_value.hardware.fcm.side_effect = OrchestratorError('down')
+        self.assertEqual(HardwareService.get_compression()['fcm_drive_count'], 0)

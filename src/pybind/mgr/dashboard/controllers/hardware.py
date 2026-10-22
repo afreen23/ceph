@@ -4,7 +4,8 @@ from typing import List, Optional
 import cherrypy
 from orchestrator import HardwareNoReport
 
-from ..model.hardware import HostHardware, HostReport
+from ..model.hardware import CompressionStats, HardwareSummary, HostHardware, \
+    HostHardwareDict, HostReport
 from ..security import Scope
 from ..services._paginate import ListPaginator
 from ..services.exception import handle_custom_error
@@ -20,7 +21,8 @@ class Hardware(RESTController):
 
     @RESTController.Collection('GET', version=APIVersion.EXPERIMENTAL)
     @EndpointDoc("Retrieve a summary of the hardware health status")
-    def summary(self, categories: Optional[List[str]] = None, hostname: Optional[List[str]] = None):
+    def summary(self, categories: Optional[List[str]] = None,
+                hostname: Optional[List[str]] = None) -> HardwareSummary:
         """
         Get the health status of as many hardware categories, or all of them if none is given
         :param categories: The hardware type, all of them by default
@@ -34,7 +36,7 @@ class Hardware(RESTController):
 class HardwareCompression(RESTController):
 
     @EndpointDoc("Retrieve cluster-wide FCM hardware compression statistics")
-    def list(self):
+    def list(self) -> CompressionStats:
         return HardwareService.get_compression()
 
 
@@ -51,7 +53,8 @@ class HardwareHosts(RESTController):
             'search': Param(str, 'Search string to filter hosts by hostname', True, ''),
         }
     )
-    def list(self, offset: int = 0, limit: int = 5, sort: str = '', search: str = ''):
+    def list(self, offset: int = 0, limit: int = 5, sort: str = '',
+             search: str = '') -> List[HostHardwareDict]:
         hardware = OrchClient.instance().hardware
 
         # Paginate cheap hostname refs first, then load blobs only for this page:
@@ -80,7 +83,7 @@ class HardwareHosts(RESTController):
         }
     )
     @handle_custom_error('Hardware', http_status_code=404, exceptions=(HardwareNoReport,))
-    def get(self, hostname: str):
+    def get(self, hostname: str) -> HostHardwareDict:
         return HostHardware.from_orch_report(
             OrchClient.instance().hardware.fullreport(hostname)).to_dict()
 
