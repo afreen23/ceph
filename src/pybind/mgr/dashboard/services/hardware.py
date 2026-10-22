@@ -14,7 +14,7 @@ class HardwareService(object):
 
     @staticmethod
     def get_summary(categories: Optional[List[str]] = None,
-                    hostname: Optional[List[str]] = None) -> Dict[str, Any]:
+                    hostnames: Optional[List[str]] = None) -> Dict[str, Any]:
         total_count = {'total': 0, 'ok': 0, 'warn': 0, 'critical': 0}
 
         output: Dict[str, Any] = {
@@ -62,7 +62,7 @@ class HardwareService(object):
 
         orch_hardware_instance = OrchClient.instance().hardware
         for category in categories:
-            data = orch_hardware_instance.common(category, hostname)
+            data = orch_hardware_instance.common(category, hostnames)
             health_counts = count_by_health(data)
             category_total = {
                 'total': count_total(data),
