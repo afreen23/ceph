@@ -2,6 +2,7 @@ import unittest
 from unittest import mock
 
 import cherrypy
+from orchestrator import OrchestratorError
 
 from ..exceptions import DashboardException
 from ..services.hardware import STATUS_CRITICAL, STATUS_OK, STATUS_UNKNOWN, \
@@ -487,3 +488,19 @@ class HardwareGetHostsTest(unittest.TestCase):
         result = HardwareService.get_hosts(offset=0, limit=10, search='osd')
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]['hostname'], 'osd-node-01')
+
+    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    def test_host_removed_after_listing_is_skipped(self, mock_instance):
+        # host1 vanishes between list_hosts() and fullreport()
+        blobs = {f'host{i}': {**MOCK_HOST_BLOB, 'host': f'host{i}'} for i in range(3)}
+        fake_client = self._make_mock_client(list(blobs.keys()), blobs)
+
+        def fullreport(hostname):
+            if hostname == 'host1':
+                raise OrchestratorError(f"Host '{hostname}' has no node-proxy data")
+            return {hostname: blobs[hostname]}
+
+        fake_client.hardware.fullreport.side_effect = fullreport
+        mock_instance.return_value = fake_client
+        result = HardwareService.get_hosts(offset=0, limit=10)
+        self.assertEqual([h['hostname'] for h in result], ['host0', 'host2'])

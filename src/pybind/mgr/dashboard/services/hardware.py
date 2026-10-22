@@ -9,7 +9,7 @@ from orchestrator import OrchestratorError
 
 from ..exceptions import DashboardException
 from ..services._paginate import ListPaginator
-from ..services.orchestrator import OrchClient
+from ..services.orchestrator import HardwareManager, OrchClient
 
 logger = logging.getLogger('services.hardware')
 
@@ -370,18 +370,29 @@ class HardwareService(object):
             default_sort='+hostname',
         )
 
-        # Step 3: fullreport only for page items. It returns {hostname: blob},
-        # so iterating .values() yields the single blob, or nothing if it is empty.
+        # Step 3: fullreport only for page items.
         hosts = [
             HardwareService._summarise_host(host_blob)
             for ref in paginator.list()
-            for host_blob in hardware.fullreport(hostname=ref['hostname']).values()
-            if host_blob
+            if (host_blob := HardwareService._fetch_host_blob(hardware, ref['hostname']))
         ]
 
         # The paginator only knows the filtered count once list() is consumed.
         cherrypy.response.headers['X-Total-Count'] = paginator.get_count()
         return hosts
+
+    @staticmethod
+    def _fetch_host_blob(hardware: HardwareManager, hostname: str) -> Optional[HostReport]:
+        """
+        Return the node-proxy blob for one host, or None if it has none.
+
+        TOCTOU: a host removed between list_hosts() and this call makes
+        fullreport() raise OrchestratorError; treat it as gone and skip it.
+        """
+        try:
+            return hardware.fullreport(hostname=hostname).get(hostname)
+        except OrchestratorError:
+            return None
 
     @staticmethod
     def get_host_detail(hostname: str) -> Dict[str, Any]:
