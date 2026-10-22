@@ -361,29 +361,25 @@ class HardwareService(object):
         hardware = OrchClient.instance().hardware
 
         # Step 1: cheap refs — just hostnames, no blobs loaded.
-        all_refs = [{'hostname': h} for h in hardware.list_hosts()]
-
         # Step 2: paginator sorts/searches/slices on refs.
         paginator = ListPaginator(
             offset, limit, sort, search,
-            input_list=all_refs,
+            input_list=[{'hostname': h} for h in hardware.list_hosts()],
             searchable_params=['hostname'],
             sortable_params=['hostname'],
             default_sort='+hostname',
         )
 
-        # Step 3: fullreport only for page items.
-        # TOCTOU: host may be removed between list_hosts() and fullreport() —
-        # skip rather than emit a phantom entry.
-        hosts: List[HostSummary] = []
-        for ref in paginator.list():
-            hostname = ref['hostname']
-            report = hardware.fullreport(hostname=hostname)
-            host_blob = report.get(hostname)
-            if not host_blob:
-                continue
-            hosts.append(HardwareService._summarise_host(host_blob))
+        # Step 3: fullreport only for page items. It returns {hostname: blob},
+        # so iterating .values() yields the single blob, or nothing if it is empty.
+        hosts = [
+            HardwareService._summarise_host(host_blob)
+            for ref in paginator.list()
+            for host_blob in hardware.fullreport(hostname=ref['hostname']).values()
+            if host_blob
+        ]
 
+        # The paginator only knows the filtered count once list() is consumed.
         cherrypy.response.headers['X-Total-Count'] = paginator.get_count()
         return hosts
 
