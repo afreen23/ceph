@@ -44,12 +44,7 @@ class HardwareHosts(RESTController):
 
     @EndpointDoc(
         "List the hardware of all hosts with node-proxy data, paginated.",
-        parameters={
-            'offset': Param(int, 'Offset into the host list (0-based)', True, 0),
-            'limit': Param(int, 'Number of hosts to return (-1 for all)', True, 5),
-            'sort': Param(str, 'Sort field, prefix with - for descending', True, ''),
-            'search': Param(str, 'Search string to filter hosts by hostname', True, ''),
-        }
+        parameters=ListPaginator.doc(default_limit=5),
     )
     def list(self, offset: int = 0, limit: int = 5, sort: str = '',
              search: str = '') -> List[HostHardwareDict]:

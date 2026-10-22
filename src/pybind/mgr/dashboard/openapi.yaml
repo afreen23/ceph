@@ -8305,13 +8305,13 @@ paths:
     get:
       parameters:
       - default: 0
-        description: Offset into the host list (0-based)
+        description: Offset into the list (0-based)
         in: query
         name: offset
         schema:
           type: integer
       - default: 5
-        description: Number of hosts to return (-1 for all)
+        description: Number of items to return (-1 for all)
         in: query
         name: limit
         schema:
@@ -8323,7 +8323,7 @@ paths:
         schema:
           type: string
       - default: ''
-        description: Search string to filter hosts by hostname
+        description: Search string to filter the list by
         in: query
         name: search
         schema:
