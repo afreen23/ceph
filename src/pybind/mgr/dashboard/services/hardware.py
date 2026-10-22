@@ -1,6 +1,7 @@
 
 import logging
 from collections import Counter
+from enum import Enum
 from typing import Any, Dict, List, Optional, TypedDict
 
 import cherrypy
@@ -12,18 +13,51 @@ from ..services.orchestrator import OrchClient
 
 logger = logging.getLogger('services.hardware')
 
-STATUS_OK = 'OK'
-STATUS_WARNING = 'Warning'
-STATUS_CRITICAL = 'Critical'
-STATUS_UNKNOWN = 'Unknown'
 
-# Maps node-proxy status.health values (case-insensitive) to API health strings.
-# Redfish uses: "OK", "Warning", "Critical"
-_HEALTH_MAP = {
-    'ok': STATUS_OK,
-    'warning': STATUS_WARNING,
-    'critical': STATUS_CRITICAL,
+class Health(str, Enum):
+    """
+    API health strings. Members compare equal to (and serialize as) their
+    string values. Lookup is case-insensitive, matching Redfish status.health
+    values ("OK", "Warning", "Critical").
+    """
+    OK = 'OK'
+    WARNING = 'Warning'
+    CRITICAL = 'Critical'
+    UNKNOWN = 'Unknown'
+
+    @classmethod
+    def _missing_(cls, value: object) -> Optional['Health']:
+        if isinstance(value, str):
+            for member in cls:
+                if member.value.lower() == value.lower():
+                    return member
+        return None
+
+    @classmethod
+    def parse(cls, value: object) -> 'Health':
+        """Like Health(value) but returns UNKNOWN for unrecognised values."""
+        try:
+            return cls(value)
+        except ValueError:
+            return cls.UNKNOWN
+
+    @property
+    def rank(self) -> int:
+        """Severity ordering used to pick the worst health: higher is worse."""
+        return _HEALTH_RANK[self]
+
+
+_HEALTH_RANK = {
+    Health.CRITICAL: 3,
+    Health.WARNING: 2,
+    Health.OK: 1,
+    Health.UNKNOWN: 0,
 }
+
+STATUS_OK = Health.OK
+STATUS_WARNING = Health.WARNING
+STATUS_CRITICAL = Health.CRITICAL
+STATUS_UNKNOWN = Health.UNKNOWN
 
 # All category names match node-proxy keys directly in the API response.
 _CATEGORIES = ['storage', 'processors', 'memory', 'network', 'power', 'fans', 'temperatures']
@@ -430,35 +464,35 @@ class HardwareService(object):
     # -----------------------------------------------------------------------
 
     @staticmethod
-    def _get_component_health(component: Component) -> str:
+    def _get_component_health(component: Component) -> Health:
         """Extract the Redfish health string from a component dict, normalised to our constants.
 
         Examples:
             >>> HardwareService._get_component_health({})
-            'Unknown'
+            <Health.UNKNOWN: 'Unknown'>
 
             A status dictionary containing a known health value is mapped to our
             normalised status:
             >>> HardwareService._get_component_health({"status": {"health": "OK"}})
-            'OK'
+            <Health.OK: 'OK'>
 
             Health values are matched case-insensitively:
             >>> HardwareService._get_component_health({"status": {"health": "Warning"}})
-            'Warning'
+            <Health.WARNING: 'Warning'>
             >>> HardwareService._get_component_health({"status": {"health": "CRITICAL"}})
-            'Critical'
+            <Health.CRITICAL: 'Critical'>
 
             A status string is also accepted:
             >>> HardwareService._get_component_health({"status": "OK"})
-            'OK'
+            <Health.OK: 'OK'>
 
             Missing or unknown health values result in an unknown status:
             >>> HardwareService._get_component_health({"status": {}})
-            'Unknown'
+            <Health.UNKNOWN: 'Unknown'>
             >>> HardwareService._get_component_health({"status": {"health": "something-else"}})
-            'Unknown'
+            <Health.UNKNOWN: 'Unknown'>
             >>> HardwareService._get_component_health({"status": None})
-            'Unknown'
+            <Health.UNKNOWN: 'Unknown'>
         """
         try:
             status = component['status']
@@ -468,8 +502,8 @@ class HardwareService(object):
                 health = status
             else:
                 health = ''
-            return _HEALTH_MAP[health.lower()]
-        except (KeyError, AttributeError, TypeError):
+            return Health.parse(health)
+        except (KeyError, TypeError):
             return STATUS_UNKNOWN
 
     @staticmethod
@@ -587,10 +621,9 @@ class HardwareService(object):
             category_summaries[cat] = HardwareService._count_category(cat_data)
 
         # Overall host health = worst health across all categories.
-        health_rank = {STATUS_CRITICAL: 3, STATUS_WARNING: 2, STATUS_OK: 1, STATUS_UNKNOWN: 0}
         worst = max(
             (s['health'] for s in category_summaries.values()),
-            key=lambda h: health_rank.get(h, 0),
+            key=lambda h: Health.parse(h).rank,
             default=STATUS_UNKNOWN
         )
 
