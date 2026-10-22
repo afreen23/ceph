@@ -194,7 +194,7 @@ HW_CPU_LABELS = ('hostname', 'cpu', 'manufacturer', 'model', 'total_threads')
 HW_MEMORY_LABELS = ('hostname', 'dimm', 'type')
 MIB_TO_BYTES = 1048576
 
-HW_HEALTH_LABELS = ('hostname', 'component', 'category')
+HW_STATUS_LABELS = ('hostname', 'component', 'category', 'state')
 
 HW_TEMP_LABELS = ('hostname', 'sensor_name')
 
@@ -1124,11 +1124,12 @@ class Module(MgrModule, OrchestratorClientMixin):
             HW_MEMORY_LABELS
         )
 
-        metrics['hardware_health'] = Metric(
+        metrics['hardware_status'] = Metric(
             'gauge',
-            'hardware_health',
-            'Hardware component health status (0=OK, 1=Warning, 2=Error)',
-            HW_HEALTH_LABELS
+            'hardware_status',
+            'Hardware component health (0=OK, 1=Warning, 2=Error), '
+            'labelled with the Redfish state of the component',
+            HW_STATUS_LABELS
         )
 
         for sensor in SENSOR_METRICS.values():
@@ -2159,6 +2160,23 @@ class Module(MgrModule, OrchestratorClientMixin):
         except Exception as e:
             self.log.error(f"Failed to get SMB metadata: {str(e)}")
 
+    @staticmethod
+    def _hw_get_state(status_val: Any) -> str:
+        """Return the Redfish state of a component (e.g. Enabled, Disabled, Absent)."""
+        if isinstance(status_val, dict):
+            state = status_val.get('state')
+            if isinstance(state, str) and state.strip():
+                return state
+        return 'Unknown'
+
+    @staticmethod
+    def _hw_health_is_missing(status_val: Any) -> bool:
+        """True if the component reports no health (e.g. disabled sensors)."""
+        if not isinstance(status_val, dict):
+            return False
+        health = status_val.get('health')
+        return health is None or str(health).lower() in ('', 'unknown')
+
     def _hw_get_health_value(
             self, status_val: Any, hostname: str = '',
             comp_id: str = '', category: str = ''
@@ -2172,7 +2190,7 @@ class Module(MgrModule, OrchestratorClientMixin):
             health_str = 'Unknown'
 
         value = HEALTH_STATUS_MAP.get(health_str)
-        if value is None:
+        if value is None and str(health_str).lower() != 'unknown':
             self.log.warning(
                 f"node-proxy: unexpected health status "
                 f"'{health_str}' for {category}/{comp_id} "
@@ -2184,14 +2202,36 @@ class Module(MgrModule, OrchestratorClientMixin):
             self, status_val: Any, hostname: str,
             comp_id: str, category: str
     ) -> None:
-        """Set hardware_health gauge for a single component."""
+        """Set hardware_status gauge for a single component.
+
+        The value is the Redfish health. The Redfish state is exported as
+        a label so that consumers can tell an enabled and healthy component
+        apart from a disabled or unavailable one, which reports no health.
+        Absent components (e.g. empty slots) are not exported.
+        """
+        state = self._hw_get_state(status_val)
+        if state == 'Absent':
+            return
         health_value = self._hw_get_health_value(
             status_val, hostname, comp_id, category
         )
-        if health_value is not None:
-            self.metrics['hardware_health'].set(
-                health_value, (hostname, comp_id, category)
-            )
+        if health_value is None:
+            if not self._hw_health_is_missing(status_val):
+                # Unexpected health string, already logged.
+                return
+            if state == 'Enabled':
+                # An enabled component without a health value has no usable status.
+                self.log.debug(
+                    f"node-proxy: no health for enabled {category}/{comp_id} "
+                    f"on {hostname}, skipping"
+                )
+                return
+            # Disabled/unavailable components report no health: export them
+            # with value 0 so that they are visible through their state label.
+            health_value = 0
+        self.metrics['hardware_status'].set(
+            health_value, (hostname, comp_id, category, state)
+        )
 
     def _hw_iter_components(
             self, status: Dict[str, Any], category: str
