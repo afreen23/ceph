@@ -2,10 +2,12 @@
 from typing import List, Optional
 
 import cherrypy
+from orchestrator import HardwareNoReport
 
 from ..security import Scope
 from ..services._paginate import ListPaginator
-from ..services.hardware import HardwareService
+from ..services.exception import handle_custom_error
+from ..services.hardware import HardwareService, HostHardwareDetail
 from ..services.orchestrator import OrchClient
 from . import APIDoc, APIRouter, EndpointDoc, Param, RESTController
 from ._version import APIVersion
@@ -76,5 +78,6 @@ class HardwareHosts(RESTController):
             'hostname': Param(str, 'The name of the host to retrieve hardware detail for', False),
         }
     )
+    @handle_custom_error('Hardware', http_status_code=404, exceptions=(HardwareNoReport,))
     def get(self, hostname: str):
-        return HardwareService.get_host_detail(hostname)
+        return HostHardwareDetail(OrchClient.instance().hardware.fullreport(hostname))

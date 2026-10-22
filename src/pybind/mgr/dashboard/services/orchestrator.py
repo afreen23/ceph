@@ -2,15 +2,18 @@
 
 import logging
 from functools import wraps
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from ceph.deployment.service_spec import ServiceSpec
-from orchestrator import DaemonDescription, DeviceLightLoc, HostSpec, \
+from orchestrator import DaemonDescription, DeviceLightLoc, HardwareNoReport, HostSpec, \
     InventoryFilter, OrchestratorClientMixin, OrchestratorError, OrchResult, \
     ServiceDescription, raise_if_exception
 
 from .. import mgr
 from ._paginate import ListPaginator
+
+if TYPE_CHECKING:
+    from .hardware import HostReport
 
 logger = logging.getLogger(__name__)
 
@@ -207,8 +210,20 @@ class HardwareManager(ResourceManager):
     def list_hosts(self) -> List[str]:
         return self.api.node_proxy_list_hosts()
 
+    def fullreport(self, hostname: str) -> 'HostReport':
+        """
+        Return this host's node-proxy report.
+
+        :raises HardwareNoReport: the host has no node-proxy data.
+        """
+        # node_proxy_fullreport() returns {hostname: report}; unwrap it here.
+        report = self._fullreport(hostname)[hostname]
+        if not report:
+            raise HardwareNoReport(f"Host '{hostname}' has an empty node-proxy report.")
+        return report
+
     @wait_api_result
-    def fullreport(self, hostname: str) -> Dict[str, Any]:
+    def _fullreport(self, hostname: str) -> Dict[str, Any]:
         return self.api.node_proxy_fullreport(hostname=hostname)
 
     @wait_api_result

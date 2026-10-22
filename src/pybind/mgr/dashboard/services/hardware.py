@@ -2,9 +2,9 @@
 import logging
 from collections import Counter
 from enum import Enum
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, cast
 
-from orchestrator import OrchestratorError
+from orchestrator import HardwareNoReport, OrchestratorError
 
 from ..exceptions import DashboardException
 from ..services.orchestrator import HardwareManager, OrchClient
@@ -81,7 +81,7 @@ class ComponentStatus(TypedDict, total=False):
 class Component(TypedDict, total=False):
     """Common fields shared by all category components.
 
-    Each category (fans, storage, etc.) adds its own fields on top — e.g.
+    Each category (fans, storage, etc.) adds its own fields on top, e.g.
     fans add 'reading'/'reading_units', storage adds 'model'/'protocol' etc.
     """
     status: ComponentStatus
@@ -102,6 +102,7 @@ class Component(TypedDict, total=False):
     total_threads: int
     memory_device_type: str
     capacity_mi_b: int
+    physical_location: Dict[str, Any]
 
 
 # CategoryData: chassis_id -> component_id -> Component
@@ -130,11 +131,16 @@ class FirmwareEntry(TypedDict, total=False):
     status: ComponentStatus
 
 
-class HostReport(TypedDict, total=False):
+class _HostReportRequired(TypedDict):
+    # node-proxy always sends these (see BaseRedfishSystem.get_system()).
     host: str
     sn: str
     status: HardwareStatus
+
+
+class HostReport(_HostReportRequired, total=False):
     firmware: Dict[str, FirmwareEntry]
+    firmwares: Dict[str, FirmwareEntry]  # sent by older node-proxy versions
 
 
 class CategorySummary(TypedDict):
@@ -159,6 +165,12 @@ class HostSummary(TypedDict):
     firmware: Dict[str, str]
 
 # pylint: enable=inherit-non-class
+
+
+def _category(status: HardwareStatus, category: str) -> _CategoryData:
+    """One category of a host's status, or empty if the BMC did not report it."""
+    # A TypedDict only accepts literal keys; categories are looked up by name.
+    return cast(Dict[str, _CategoryData], status).get(category, {})
 
 
 class HardwareService(object):
@@ -348,78 +360,13 @@ class HardwareService(object):
         Return the node-proxy blob for one host, or None if it has none.
 
         TOCTOU: a host removed between list_hosts() and this call makes
-        fullreport() raise OrchestratorError; treat it as gone and skip it.
+        fullreport() raise HardwareNoReport; treat it as gone and skip it.
+        Any other orchestrator error is a real failure and propagates.
         """
         try:
-            return hardware.fullreport(hostname=hostname).get(hostname)
-        except OrchestratorError:
+            return hardware.fullreport(hostname)
+        except HardwareNoReport:
             return None
-
-    @staticmethod
-    def get_host_detail(hostname: str) -> Dict[str, Any]:
-        """
-        GET /api/hardware/hosts/{hostname} — full per-component detail for one host.
-        """
-        hardware = OrchClient.instance().hardware
-
-        report = hardware.fullreport(hostname=hostname)
-        host_data = report.get(hostname)
-        if not host_data:
-            raise DashboardException(
-                msg=f"Host '{hostname}' has no node-proxy data",
-                http_status_code=404,
-                component='Hardware'
-            )
-        status = host_data.get('status', {})
-
-        return {
-            'hostname': host_data.get('host', hostname),
-            'sn': host_data.get('sn', ''),
-
-            # include_id=True: drive component_id (e.g. "disk.bay.8:...") is
-            # the fallback identifier when physical_location data is absent.
-            'storage': HardwareService._flatten_category(
-                status.get('storage', {}),
-                ['description', 'model', 'protocol', 'serial_number',
-                 'capacity_bytes', 'firmware_version'],
-                include_id=True
-            ),
-
-            'fans': HardwareService._flatten_category(
-                status.get('fans', {}),
-                ['name', 'physical_context', 'reading', 'reading_units']
-            ),
-            'temperatures': HardwareService._flatten_category(
-                status.get('temperatures', {}),
-                ['name', 'physical_context', 'reading', 'reading_units']
-            ),
-            # include_id=True: cpu.socket.1, cpu.socket.2 etc. identifies the physical socket.
-            'processors': HardwareService._flatten_category(
-                status.get('processors', {}),
-                ['description', 'model', 'manufacturer', 'total_cores', 'total_threads',
-                 'processor_type'],
-                include_id=True
-            ),
-            # include_id=True: dimm.socket.a1 etc. identifies the physical DIMM slot.
-            'memory': HardwareService._flatten_category(
-                status.get('memory', {}),
-                ['description', 'memory_device_type', 'capacity_mi_b'],
-                include_id=True
-            ),
-            # include_id=True: oslogicalnetwork.2 etc. identifies the NIC interface.
-            'network': HardwareService._flatten_category(
-                status.get('network', {}),
-                ['name', 'description', 'speed_mbps'],
-                include_id=True
-            ),
-            'power': HardwareService._flatten_category(
-                status.get('power', {}),
-                ['name', 'model', 'manufacturer']
-            ),
-            'firmware': HardwareService._extract_firmware(
-                host_data.get('firmware', host_data.get('firmwares', {}))
-            ),
-        }
 
     @staticmethod
     def validate_categories(categories: Optional[List[str]]) -> List[str]:
@@ -525,7 +472,7 @@ class HardwareService(object):
         }
 
     @staticmethod
-    def _extract_firmware(firmware_data: Dict[str, FirmwareEntry]) -> Dict[str, str]:
+    def extract_firmware(firmware_data: Dict[str, FirmwareEntry]) -> Dict[str, str]:
         """
         Flatten firmware inventory into { component_name: version }.
         The key in firmware_data is an opaque Redfish ID; we use the
@@ -543,8 +490,8 @@ class HardwareService(object):
         return result
 
     @staticmethod
-    def _flatten_category(category_data: _CategoryData, fields: List[str],
-                          include_id: bool = False) -> List[Dict[str, Any]]:
+    def flatten_category(category_data: _CategoryData, fields: List[str],
+                         include_id: bool = False) -> List[Dict[str, Any]]:
         """
         Flatten a node-proxy category blob into a list of component dicts.
 
@@ -566,7 +513,7 @@ class HardwareService(object):
                     entry['id'] = comp_id
                 for field in fields:
                     if field in component:
-                        entry[field] = component[field]
+                        entry[field] = cast(Dict[str, Any], component)[field]
 
                 # slot: Atollon sets a top-level 'slot' field; non-Atollon
                 # hardware stores the bay as physical_location.partlocation.
@@ -595,12 +542,11 @@ class HardwareService(object):
             host_data['host'] = hostname string
 
         """
-        status = host_data.get('status', {})
+        status = host_data['status']
 
         category_summaries: Dict[str, CategorySummary] = {}
         for cat in _CATEGORIES:
-            cat_data = status.get(cat, {})
-            category_summaries[cat] = HardwareService._count_category(cat_data)
+            category_summaries[cat] = HardwareService._count_category(_category(status, cat))
 
         # Overall host health = worst health across all categories.
         worst = max(
@@ -609,13 +555,13 @@ class HardwareService(object):
             default=STATUS_UNKNOWN
         )
 
-        firmware = HardwareService._extract_firmware(
+        firmware = HardwareService.extract_firmware(
             host_data.get('firmware', host_data.get('firmwares', {}))
         )
 
         return {
-            'hostname': host_data.get('host', ''),
-            'sn': host_data.get('sn', ''),
+            'hostname': host_data['host'],
+            'sn': host_data['sn'],
             'health': worst,
             'storage': category_summaries['storage'],
             'processors': category_summaries['processors'],
@@ -626,3 +572,45 @@ class HardwareService(object):
             'temperatures': category_summaries['temperatures'],
             'firmware': firmware,
         }
+
+
+class HostHardwareDetail(dict):
+    """
+    Per-component detail of one host's node-proxy report, for
+    GET /api/hardware/hosts/{hostname}:
+
+        HostHardwareDetail(OrchClient.instance().hardware.fullreport(hostname))
+
+    host, sn and status are always present in a report. A category, or a field
+    within a component, may be missing depending on what the BMC exposes.
+    """
+
+    # category -> (component fields to keep, include the Redfish component id).
+    # The component id is kept where it identifies something physical: the drive
+    # bay (fallback when physical_location is absent), CPU socket, DIMM slot and
+    # NIC interface.
+    CATEGORIES: Dict[str, Tuple[List[str], bool]] = {
+        'storage': (['description', 'model', 'protocol', 'serial_number',
+                     'capacity_bytes', 'firmware_version'], True),
+        'fans': (['name', 'physical_context', 'reading', 'reading_units'], False),
+        'temperatures': (['name', 'physical_context', 'reading', 'reading_units'], False),
+        'processors': (['description', 'model', 'manufacturer', 'total_cores',
+                        'total_threads', 'processor_type'], True),
+        'memory': (['description', 'memory_device_type', 'capacity_mi_b'], True),
+        'network': (['name', 'description', 'speed_mbps'], True),
+        'power': (['name', 'model', 'manufacturer'], False),
+    }
+
+    def __init__(self, report: HostReport) -> None:
+        status = report['status']
+        super().__init__(
+            hostname=report['host'],
+            sn=report['sn'],
+            **{
+                category: HardwareService.flatten_category(
+                    _category(status, category), fields, include_id=include_id)
+                for category, (fields, include_id) in self.CATEGORIES.items()
+            },
+            firmware=HardwareService.extract_firmware(
+                report.get('firmware', report.get('firmwares', {}))),
+        )

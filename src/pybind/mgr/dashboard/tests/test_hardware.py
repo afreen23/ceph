@@ -2,12 +2,13 @@ import unittest
 from unittest import mock
 from urllib.parse import urlencode
 
-from orchestrator import OrchestratorError
+from orchestrator import HardwareNoReport, OrchestratorError
 
 from ..controllers.hardware import HardwareHosts
 from ..exceptions import DashboardException
 from ..services.hardware import STATUS_CRITICAL, STATUS_OK, STATUS_UNKNOWN, \
     STATUS_WARNING, HardwareService
+from ..services.orchestrator import HardwareManager
 from ..tests import ControllerTestCase
 
 # mirrors NodeProxyCache.data[host] shape.
@@ -367,13 +368,17 @@ class HardwareHostsControllerTest(ControllerTestCase):
         """
         Build a mock OrchClient where:
           hardware.list_hosts() returns hostnames
-          hardware.fullreport(hostname=h) returns { h: blobs[h] }
+          hardware.fullreport(h) returns blobs[h], or raises HardwareNoReport
         """
+        def fullreport(hostname):
+            try:
+                return blobs[hostname]
+            except KeyError:
+                raise HardwareNoReport(f"Host '{hostname}' has no node-proxy data")
+
         fake_client = mock.Mock()
         fake_client.hardware.list_hosts.return_value = hostnames
-        fake_client.hardware.fullreport.side_effect = (
-            lambda hostname: {hostname: blobs.get(hostname, {})}
-        )
+        fake_client.hardware.fullreport.side_effect = fullreport
         return fake_client
 
     @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
@@ -504,12 +509,83 @@ class HardwareHostsControllerTest(ControllerTestCase):
         blobs = {f'host{i}': {**MOCK_HOST_BLOB, 'host': f'host{i}'} for i in range(3)}
         fake_client = self._make_mock_client(list(blobs.keys()), blobs)
 
-        def fullreport(hostname):
-            if hostname == 'host1':
-                raise OrchestratorError(f"Host '{hostname}' has no node-proxy data")
-            return {hostname: blobs[hostname]}
-
-        fake_client.hardware.fullreport.side_effect = fullreport
+        del blobs['host1']
         mock_instance.return_value = fake_client
         result = self._list(offset=0, limit=10)
         self.assertEqual([h['hostname'] for h in result], ['host0', 'host2'])
+
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
+    def test_other_orchestrator_error_is_not_skipped(self, mock_instance):
+        # Only a missing report is skipped; other orchestrator failures surface.
+        fake_client = self._make_mock_client(['host0'], {})
+        fake_client.hardware.fullreport.side_effect = OrchestratorError('orchestrator down')
+        mock_instance.return_value = fake_client
+        self._get(f'{self.URL}?offset=0&limit=10')
+        self.assertStatus(500)
+
+
+class HardwareHostDetailControllerTest(ControllerTestCase):
+    URL = '/api/hardware/hosts'
+
+    @classmethod
+    def setup_server(cls):
+        cls.setup_controllers([HardwareHosts])
+
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
+    def test_detail_shape(self, mock_instance):
+        mock_instance.return_value.hardware.fullreport.return_value = MOCK_HOST_BLOB
+        self._get(f'{self.URL}/host1')
+        self.assertStatus(200)
+        detail = self.json_body()
+        self.assertEqual(detail['hostname'], 'host1')
+        self.assertEqual(detail['sn'], 'ABC123')
+        self.assertEqual(
+            set(detail),
+            {'hostname', 'sn', 'storage', 'fans', 'temperatures', 'processors',
+             'memory', 'network', 'power', 'firmware'})
+        self.assertEqual(detail['firmware'], {'BMC': '2.14', 'BIOS': '1.8.3'})
+
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
+    def test_detail_components_flattened(self, mock_instance):
+        mock_instance.return_value.hardware.fullreport.return_value = MOCK_HOST_BLOB
+        self._get(f'{self.URL}/host1')
+        storage = self.json_body()['storage']
+        self.assertEqual(len(storage), 2)
+        self.assertEqual({d['health'] for d in storage}, {STATUS_OK, STATUS_CRITICAL})
+        self.assertTrue(all('chassis_id' in d and 'id' in d for d in storage))
+
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
+    def test_detail_missing_category_is_empty(self, mock_instance):
+        blob = {**MOCK_HOST_BLOB, 'status': {'fans': MOCK_HOST_BLOB['status']['fans']}}
+        mock_instance.return_value.hardware.fullreport.return_value = blob
+        self._get(f'{self.URL}/host1')
+        self.assertStatus(200)
+        self.assertEqual(self.json_body()['memory'], [])
+
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
+    def test_detail_no_report_is_404(self, mock_instance):
+        mock_instance.return_value.hardware.fullreport.side_effect = HardwareNoReport(
+            "Host 'nope' has no node-proxy data")
+        self._get(f'{self.URL}/nope')
+        self.assertStatus(404)
+
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
+    def test_detail_other_orchestrator_error_is_not_404(self, mock_instance):
+        mock_instance.return_value.hardware.fullreport.side_effect = OrchestratorError(
+            'orchestrator down')
+        self._get(f'{self.URL}/host1')
+        self.assertStatus(500)
+
+
+class HardwareManagerFullreportTest(unittest.TestCase):
+    def test_unwraps_single_host(self):
+        manager = HardwareManager(mock.Mock())
+        with mock.patch.object(HardwareManager, '_fullreport',
+                               return_value={'host1': MOCK_HOST_BLOB}):
+            self.assertIs(manager.fullreport('host1'), MOCK_HOST_BLOB)
+
+    def test_empty_report_raises(self):
+        manager = HardwareManager(mock.Mock())
+        with mock.patch.object(HardwareManager, '_fullreport', return_value={'host1': {}}):
+            with self.assertRaises(HardwareNoReport):
+                manager.fullreport('host1')

@@ -93,6 +93,15 @@ class OrchestratorValidationError(OrchestratorError):
     """
 
 
+class HardwareNoReport(OrchestratorError):
+    """
+    Raised when a host has no node-proxy data (unknown host or node-proxy not running).
+    """
+
+    def __init__(self, msg: str) -> None:
+        super().__init__(msg, errno=-errno.ENOENT)
+
+
 @contextmanager
 def set_exception_subject(kind: str, subject: str, overwrite: bool = False) -> Iterator[None]:
     try:

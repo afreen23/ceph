@@ -2411,7 +2411,7 @@ Then run the following:
 
     @handle_orch_error
     def node_proxy_list_hosts(self) -> List[str]:
-        # Returns hosts with node-proxy data — no blobs loaded.
+        # Returns hosts with node-proxy data; no blobs loaded.
         return self.node_proxy_cache.list_hosts()
 
     @handle_orch_error
