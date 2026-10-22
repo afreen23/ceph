@@ -18,7 +18,7 @@ from collections import Counter
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
-from typing import Any, Dict, List, Optional, TypedDict, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, TypedDict, cast
 
 
 class Health(str, Enum):
@@ -154,16 +154,16 @@ class HostReport(_HostReportRequired, total=False):
 
 # Category -> component fields exposed by the API. Every component also gets
 # id, chassis_id, health and state.
-CATEGORY_FIELDS: Dict[str, List[str]] = {
-    'storage': ['description', 'model', 'protocol', 'serial_number',
-                'capacity_bytes', 'firmware_version', 'slot'],
-    'processors': ['description', 'model', 'manufacturer', 'total_cores',
-                   'total_threads', 'processor_type'],
-    'memory': ['description', 'memory_device_type', 'capacity_mi_b'],
-    'network': ['name', 'description', 'speed_mbps'],
-    'power': ['name', 'model', 'manufacturer'],
-    'fans': ['name', 'physical_context', 'reading', 'reading_units'],
-    'temperatures': ['name', 'physical_context', 'reading', 'reading_units'],
+CATEGORY_FIELDS: Dict[str, Tuple[str, ...]] = {
+    'storage': ('description', 'model', 'protocol', 'serial_number',
+                'capacity_bytes', 'firmware_version', 'slot'),
+    'processors': ('description', 'model', 'manufacturer', 'total_cores',
+                   'total_threads', 'processor_type'),
+    'memory': ('description', 'memory_device_type', 'capacity_mi_b'),
+    'network': ('name', 'description', 'speed_mbps'),
+    'power': ('name', 'model', 'manufacturer'),
+    'fans': ('name', 'physical_context', 'reading', 'reading_units'),
+    'temperatures': ('name', 'physical_context', 'reading', 'reading_units'),
 }
 
 
@@ -208,7 +208,7 @@ class Component:
         except (KeyError, TypeError):
             return None
 
-    def to_dict(self, fields: List[str]) -> Dict[str, Any]:
+    def to_dict(self, fields: Sequence[str]) -> Dict[str, Any]:
         report = cast(Dict[str, Any], self.report)
         data: Dict[str, Any] = {'id': self.id, 'chassis_id': self.chassis_id}
         data.update((field, report[field]) for field in fields if field in report)
