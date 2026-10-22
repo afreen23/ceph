@@ -316,14 +316,17 @@ class Osd(RESTController):
     @raise_if_no_orchestrator([OrchFeature.OSD_DELETE, OrchFeature.OSD_GET_REMOVE_STATUS])
     @handle_orchestrator_error('osd')
     @osd_task('delete', {'svc_id': '{svc_id}'})
-    def delete(self, svc_id, preserve_id=None, force=None):  # pragma: no cover
+    def delete(self, svc_id, preserve_id=None, force=None, zap=None):  # pragma: no cover
         replace = False
+        zap_device = False
         check: Union[Dict[str, Any], bool] = False
         try:
             if preserve_id is not None:
                 replace = str_to_bool(preserve_id)
             if force is not None:
                 check = not str_to_bool(force)
+            if zap is not None:
+                zap_device = str_to_bool(zap)
         except ValueError:
             raise DashboardException(
                 component='osd', http_status_code=400, msg='Invalid parameter(s)')
@@ -335,8 +338,8 @@ class Osd(RESTController):
                 logger.error('Unable to remove osd.%s: %s', svc_id, check['message'])
                 raise DashboardException(component='osd', msg=check['message'])
 
-        logger.info('Start removing osd.%s (replace: %s)...', svc_id, replace)
-        orch.osds.remove([svc_id], replace)
+        logger.info('Start removing osd.%s (replace: %s, zap: %s)...', svc_id, replace, zap_device)
+        orch.osds.remove([svc_id], replace, zap=zap_device)
         while True:
             removal_osds = orch.osds.removing_status()
             logger.info('Current removing OSDs %s', removal_osds)

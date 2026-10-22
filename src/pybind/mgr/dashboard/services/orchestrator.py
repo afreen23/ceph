@@ -154,8 +154,8 @@ class OsdManager(ResourceManager):
         return self.api.apply_drivegroups(drive_group_specs)
 
     @wait_api_result
-    def remove(self, osd_ids, replace=False, force=False):
-        return self.api.remove_osds(osd_ids, replace, force)
+    def remove(self, osd_ids, replace=False, force=False, zap=False):
+        return self.api.remove_osds(osd_ids, replace=replace, force=force, zap=zap)
 
     @wait_api_result
     def removing_status(self):

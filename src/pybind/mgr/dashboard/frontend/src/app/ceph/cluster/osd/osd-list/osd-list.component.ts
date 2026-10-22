@@ -548,7 +548,8 @@ export class OsdListComponent extends ListWithDetails implements OnInit {
 
   delete() {
     const deleteFormGroup = new CdFormGroup({
-      preserve: new UntypedFormControl(false)
+      preserve: new UntypedFormControl(false),
+      zap: new UntypedFormControl(false)
     });
 
     this.showCriticalConfirmationModal(
@@ -565,7 +566,7 @@ export class OsdListComponent extends ListWithDetails implements OnInit {
           task: new FinishedTask('osd/' + URLVerbs.DELETE, {
             svc_id: id
           }),
-          call: this.osdService.delete(id, deleteFormGroup.value.preserve, true)
+          call: this.osdService.delete(id, deleteFormGroup.value.preserve, true, deleteFormGroup.value.zap)
         });
       },
       true,

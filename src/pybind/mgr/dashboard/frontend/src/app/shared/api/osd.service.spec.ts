@@ -59,8 +59,8 @@ describe('OsdService', () => {
 
   it('should call delete', () => {
     const id = 1;
-    service.delete(id, true, true).subscribe();
-    const req = httpTesting.expectOne(`api/osd/${id}?preserve_id=true&force=true`);
+    service.delete(id, true, true, true).subscribe();
+    const req = httpTesting.expectOne(`api/osd/${id}?preserve_id=true&force=true&zap=true`);
     expect(req.request.method).toBe('DELETE');
   });
 

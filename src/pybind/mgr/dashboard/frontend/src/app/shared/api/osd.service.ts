@@ -166,10 +166,11 @@ export class OsdService {
     return this.http.post(`${this.path}/${id}/destroy`, null);
   }
 
-  delete(id: number, preserveId?: boolean, force?: boolean) {
+  delete(id: number, preserveId?: boolean, force?: boolean, zap?: boolean) {
     const params = {
       preserve_id: preserveId ? 'true' : 'false',
-      force: force ? 'true' : 'false'
+      force: force ? 'true' : 'false',
+      zap: zap ? 'true' : 'false'
     };
     return this.http.delete(`${this.path}/${id}`, { observe: 'response', params: params });
   }
