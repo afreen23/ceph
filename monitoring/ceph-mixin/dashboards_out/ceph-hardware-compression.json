@@ -1104,7 +1104,8 @@
               "type": "auto"
             },
             "filterable": true,
-            "inspect": false
+            "inspect": false,
+            "disableSortBy": false
           },
           "mappings": [],
           "thresholds": {
@@ -1236,7 +1237,12 @@
           "show": false
         },
         "showHeader": true,
-        "sortBy": []
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "OSD"
+          }
+        ]
       },
       "pluginVersion": "12.3.1",
       "targets": [
