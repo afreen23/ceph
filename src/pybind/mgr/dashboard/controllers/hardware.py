@@ -4,8 +4,7 @@ from typing import List, Optional
 import cherrypy
 from orchestrator import HardwareNoReport
 
-from ..model.hardware import CompressionStats, HardwareSummary, HostHardware, \
-    HostHardwareDict, HostReport
+from ..model.hardware import HostHardware, HostHardwareDict, HostReport
 from ..security import Scope
 from ..services._paginate import ListPaginator
 from ..services.exception import handle_custom_error
@@ -21,8 +20,7 @@ class Hardware(RESTController):
 
     @RESTController.Collection('GET', version=APIVersion.EXPERIMENTAL)
     @EndpointDoc("Retrieve a summary of the hardware health status")
-    def summary(self, categories: Optional[List[str]] = None,
-                hostname: Optional[List[str]] = None) -> HardwareSummary:
+    def summary(self, categories: Optional[List[str]] = None, hostname: Optional[List[str]] = None):
         """
         Get the health status of as many hardware categories, or all of them if none is given
         :param categories: The hardware type, all of them by default
@@ -36,7 +34,7 @@ class Hardware(RESTController):
 class HardwareCompression(RESTController):
 
     @EndpointDoc("Retrieve cluster-wide FCM hardware compression statistics")
-    def list(self) -> CompressionStats:
+    def list(self):
         return HardwareService.get_compression()
 
 

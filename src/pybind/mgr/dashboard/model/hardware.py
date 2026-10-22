@@ -18,7 +18,7 @@ from collections import Counter
 from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple, TypedDict, Union, cast
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple, TypedDict, cast
 
 
 class Health(str, Enum):
@@ -123,27 +123,6 @@ class ComponentReport(TypedDict, total=False):
 CategoryReport = Dict[str, Dict[str, ComponentReport]]
 
 
-class FcmDriveReport(TypedDict, total=False):
-    """An FCM (compressing) drive, see ceph_node_proxy.fcm_stats."""
-    device: str
-    model: str
-    serial_number: str
-    valid: bool
-    phy_size_bytes: int
-    phy_util_bytes: int
-    log_size_bytes: int
-    log_util_bytes: int
-    phy_util_percent: float
-    log_util_percent: float
-    compression_ratio: float
-    savings_bytes: int
-    status: ComponentStatusReport
-
-
-# chassis_id -> device -> FcmDriveReport
-FcmCategoryReport = Dict[str, Dict[str, FcmDriveReport]]
-
-
 class StatusReport(TypedDict, total=False):
     storage: CategoryReport
     processors: CategoryReport
@@ -152,7 +131,7 @@ class StatusReport(TypedDict, total=False):
     power: CategoryReport
     fans: CategoryReport
     temperatures: CategoryReport
-    fcm: FcmCategoryReport
+    fcm: CategoryReport
 
 
 class FirmwareReport(TypedDict, total=False):
@@ -240,38 +219,6 @@ class HostHardwareDict(TypedDict):
     status: HardwareStatusDict
     firmware: Dict[str, str]
 
-
-class HealthCounts(TypedDict):
-    total: int
-    ok: int
-    warn: int
-    critical: int
-
-
-class SummaryTotals(TypedDict):
-    category: Dict[str, HealthCounts]
-    total: HealthCounts
-
-
-class HostFlawed(TypedDict):
-    flawed: bool
-
-
-class HardwareSummary(TypedDict):
-    """GET /api/hardware/summary, see HardwareSummary in frontend hardware.enum.ts."""
-    total: SummaryTotals
-    # hostname -> HostFlawed, plus 'flawed' -> number of flawed hosts
-    host: Dict[str, Union[HostFlawed, int]]
-
-
-class CompressionStats(TypedDict):
-    """GET /api/hardware/compression"""
-    fcm_drive_count: int
-    phy_util_percent: Optional[float]
-    log_util_percent: Optional[float]
-    savings_bytes: Optional[int]
-    compression_ratio: Optional[float]
-    efficiency_percent: Optional[float]
 
 # pylint: enable=inherit-non-class
 

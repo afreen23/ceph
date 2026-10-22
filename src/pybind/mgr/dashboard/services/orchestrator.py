@@ -10,7 +10,7 @@ from orchestrator import DaemonDescription, DeviceLightLoc, HardwareNoReport, \
     OrchResult, ServiceDescription, raise_if_exception
 
 from .. import mgr
-from ..model.hardware import CategoryReport, FcmCategoryReport, FullReport, HostReport
+from ..model.hardware import FullReport, HostReport
 from ._paginate import ListPaginator
 
 logger = logging.getLogger(__name__)
@@ -225,15 +225,8 @@ class HardwareManager(ResourceManager):
         return self.api.node_proxy_fullreport(hostname=hostname)
 
     @wait_api_result
-    def common(self, category: str,
-               hostname: Optional[List[str]] = None) -> Dict[str, CategoryReport]:
-        """hostname -> that host's report for one category."""
+    def common(self, category: str, hostname: Optional[List[str]] = None) -> str:
         return self.api.node_proxy_common(category, hostname=hostname)
-
-    @wait_api_result
-    def fcm(self) -> Dict[str, FcmCategoryReport]:
-        """hostname -> that host's FCM (compressing) drives."""
-        return self.api.node_proxy_common('fcm')
 
 
 class CertStoreManager(ResourceManager):
