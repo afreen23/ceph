@@ -8349,7 +8349,7 @@ paths:
             trace.
       security:
       - jwt: []
-      summary: List all hosts with hardware health summary, paginated.
+      summary: List the hardware of all hosts with node-proxy data, paginated.
       tags:
       - Hardware
   /api/hardware/hosts/{hostname}:
@@ -8382,8 +8382,8 @@ paths:
             trace.
       security:
       - jwt: []
-      summary: Get full hardware detail for a single host, with per-component data
-        for all categories.
+      summary: Get the hardware of a single host, with per-component data for all
+        categories.
       tags:
       - Hardware
   /api/hardware/summary:

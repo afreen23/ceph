@@ -6,8 +6,8 @@ from orchestrator import HardwareNoReport, OrchestratorError
 
 from ..controllers.hardware import HardwareHosts
 from ..exceptions import DashboardException
-from ..services.hardware import STATUS_CRITICAL, STATUS_OK, STATUS_UNKNOWN, \
-    STATUS_WARNING, HardwareService
+from ..model.hardware import Category, Component, Health, HostHardware
+from ..services.hardware import HardwareService
 from ..services.orchestrator import HardwareManager
 from ..tests import ControllerTestCase
 
@@ -173,18 +173,89 @@ MOCK_WARNING_STATUS_DATA = {
 }
 
 
-class HardwareConstantsTest(unittest.TestCase):
-    def test_status_ok_value(self):
-        self.assertEqual(STATUS_OK, 'OK')
+class HealthTest(unittest.TestCase):
+    def test_values(self):
+        self.assertEqual([h.value for h in Health], ['OK', 'Warning', 'Critical', 'Unknown'])
 
-    def test_status_warning_value(self):
-        self.assertEqual(STATUS_WARNING, 'Warning')
+    def test_case_insensitive(self):
+        self.assertIs(Health('critical'), Health.CRITICAL)
 
-    def test_status_critical_value(self):
-        self.assertEqual(STATUS_CRITICAL, 'Critical')
+    def test_parse_unknown(self):
+        self.assertIs(Health.parse('something-else'), Health.UNKNOWN)
+        self.assertIs(Health.parse(None), Health.UNKNOWN)
 
-    def test_status_unknown_value(self):
-        self.assertEqual(STATUS_UNKNOWN, 'Unknown')
+
+class ComponentModelTest(unittest.TestCase):
+    def _component(self, report):
+        return Component.from_orch_report('1', 'c-0', report)
+
+    def test_health_from_status_dict(self):
+        self.assertIs(self._component({'status': {'health': 'Warning'}}).health, Health.WARNING)
+
+    def test_health_from_status_string(self):
+        self.assertIs(self._component({'status': 'OK'}).health, Health.OK)
+
+    def test_health_missing(self):
+        self.assertIs(self._component({}).health, Health.UNKNOWN)
+        self.assertIs(self._component({'status': {}}).health, Health.UNKNOWN)
+        self.assertIs(self._component({'status': None}).health, Health.UNKNOWN)
+
+    def test_state(self):
+        self.assertEqual(self._component({'status': {'state': 'Enabled'}}).state, 'Enabled')
+        self.assertEqual(self._component({'status': 'OK'}).state, '')
+
+    def test_slot_prefers_top_level(self):
+        self.assertEqual(self._component({'slot': 8}).slot, 8)
+
+    def test_slot_falls_back_to_physical_location(self):
+        report = {'physical_location': {'partlocation': {'locationordinalvalue': 3}}}
+        self.assertEqual(self._component(report).slot, 3)
+        self.assertIsNone(self._component({}).slot)
+
+    def test_to_dict_keeps_only_reported_fields(self):
+        component = self._component({'name': 'Fan1A', 'reading': 4800, 'entity': 'x',
+                                     'status': {'health': 'OK', 'state': 'Enabled'}})
+        self.assertEqual(component.to_dict(['name', 'reading', 'reading_units']), {
+            'id': 'c-0', 'chassis_id': '1', 'name': 'Fan1A', 'reading': 4800,
+            'health': Health.OK, 'state': 'Enabled'})
+
+
+class CategoryModelTest(unittest.TestCase):
+    def test_counts_and_worst_health(self):
+        category = Category.from_orch_report('storage', MOCK_HOST_BLOB['status']['storage'])
+        data = category.to_dict()
+        self.assertEqual((data['total'], data['ok'], data['warning'], data['critical']),
+                         (2, 1, 0, 1))
+        self.assertIs(category.health, Health.CRITICAL)
+
+    def test_empty_is_unknown(self):
+        self.assertIs(Category.from_orch_report('fans', {}).health, Health.UNKNOWN)
+
+    def test_all_unknown_is_unknown(self):
+        category = Category.from_orch_report('fans', {'1': {'f': {'status': {}}}})
+        self.assertIs(category.health, Health.UNKNOWN)
+
+    def test_non_dict_component_skipped(self):
+        category = Category.from_orch_report('fans', {'1': {'f': 'garbage'}})
+        self.assertEqual(category.total, 0)
+
+
+class HostHardwareModelTest(unittest.TestCase):
+    def test_from_orch_report(self):
+        host = HostHardware.from_orch_report(MOCK_HOST_BLOB)
+        self.assertEqual((host.hostname, host.sn), ('host1', 'ABC123'))
+        self.assertIs(host.health, Health.CRITICAL)
+        self.assertEqual(host.firmware, {'BMC': '2.14', 'BIOS': '1.8.3'})
+
+    def test_legacy_firmwares_key(self):
+        report = {k: v for k, v in MOCK_HOST_BLOB.items() if k != 'firmware'}
+        report['firmwares'] = MOCK_HOST_BLOB['firmware']
+        self.assertEqual(HostHardware.from_orch_report(report).firmware,
+                         {'BMC': '2.14', 'BIOS': '1.8.3'})
+
+    def test_missing_required_key_raises(self):
+        with self.assertRaises(KeyError):
+            HostHardware.from_orch_report({'host': 'host1', 'status': {}})
 
 
 class HardwareValidateCategoriesTest(unittest.TestCase):
@@ -399,10 +470,9 @@ class HardwareHostsControllerTest(ControllerTestCase):
         host = result[0]
         self.assertEqual(host['hostname'], 'host1')
         self.assertEqual(host['sn'], 'ABC123')
-        self.assertIn('health', host)
-        self.assertIn('storage', host)
-        self.assertIn('fans', host)
-        self.assertIn('firmware', host)
+        self.assertEqual(set(host), {'hostname', 'sn', 'health', 'status', 'firmware'})
+        self.assertEqual(set(host['status']), {'storage', 'processors', 'memory', 'network',
+                                               'power', 'fans', 'temperatures'})
 
     @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_storage_counts(self, mock_instance):
@@ -411,11 +481,11 @@ class HardwareHostsControllerTest(ControllerTestCase):
             ['host1'], {'host1': MOCK_HOST_BLOB}
         )
         result = self._list(offset=0, limit=10)
-        storage = result[0]['storage']
+        storage = result[0]['status']['storage']
         self.assertEqual(storage['total'], 2)
         self.assertEqual(storage['ok'], 1)
         self.assertEqual(storage['critical'], 1)
-        self.assertEqual(storage['health'], STATUS_CRITICAL)
+        self.assertEqual(storage['health'], Health.CRITICAL)
 
     @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_fans_counts(self, mock_instance):
@@ -424,11 +494,11 @@ class HardwareHostsControllerTest(ControllerTestCase):
             ['host1'], {'host1': MOCK_HOST_BLOB}
         )
         result = self._list(offset=0, limit=10)
-        fans = result[0]['fans']
+        fans = result[0]['status']['fans']
         self.assertEqual(fans['total'], 2)
         self.assertEqual(fans['ok'], 1)
         self.assertEqual(fans['warning'], 1)
-        self.assertEqual(fans['health'], STATUS_WARNING)
+        self.assertEqual(fans['health'], Health.WARNING)
 
     @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_firmware_skips_unknown_version(self, mock_instance):
@@ -450,7 +520,7 @@ class HardwareHostsControllerTest(ControllerTestCase):
             ['host1'], {'host1': MOCK_HOST_BLOB}
         )
         result = self._list(offset=0, limit=10)
-        self.assertEqual(result[0]['health'], STATUS_CRITICAL)
+        self.assertEqual(result[0]['health'], Health.CRITICAL)
 
     @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_pagination_total_in_header(self, mock_instance):
@@ -539,19 +609,27 @@ class HardwareHostDetailControllerTest(ControllerTestCase):
         detail = self.json_body()
         self.assertEqual(detail['hostname'], 'host1')
         self.assertEqual(detail['sn'], 'ABC123')
-        self.assertEqual(
-            set(detail),
-            {'hostname', 'sn', 'storage', 'fans', 'temperatures', 'processors',
-             'memory', 'network', 'power', 'firmware'})
+        self.assertEqual(detail['health'], Health.CRITICAL)
+        self.assertEqual(set(detail), {'hostname', 'sn', 'health', 'status', 'firmware'})
         self.assertEqual(detail['firmware'], {'BMC': '2.14', 'BIOS': '1.8.3'})
+
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
+    def test_detail_matches_list_item(self, mock_instance):
+        # One representation for both endpoints.
+        mock_instance.return_value.hardware.list_hosts.return_value = ['host1']
+        mock_instance.return_value.hardware.fullreport.return_value = MOCK_HOST_BLOB
+        self._get(f'{self.URL}/host1')
+        detail = self.json_body()
+        self._get(self.URL)
+        self.assertEqual(self.json_body(), [detail])
 
     @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_detail_components_flattened(self, mock_instance):
         mock_instance.return_value.hardware.fullreport.return_value = MOCK_HOST_BLOB
         self._get(f'{self.URL}/host1')
-        storage = self.json_body()['storage']
+        storage = self.json_body()['status']['storage']['components']
         self.assertEqual(len(storage), 2)
-        self.assertEqual({d['health'] for d in storage}, {STATUS_OK, STATUS_CRITICAL})
+        self.assertEqual({d['health'] for d in storage}, {Health.OK, Health.CRITICAL})
         self.assertTrue(all('chassis_id' in d and 'id' in d for d in storage))
 
     @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
@@ -560,7 +638,9 @@ class HardwareHostDetailControllerTest(ControllerTestCase):
         mock_instance.return_value.hardware.fullreport.return_value = blob
         self._get(f'{self.URL}/host1')
         self.assertStatus(200)
-        self.assertEqual(self.json_body()['memory'], [])
+        self.assertEqual(self.json_body()['status']['memory'], {
+            'health': Health.UNKNOWN, 'total': 0, 'ok': 0, 'warning': 0, 'critical': 0,
+            'components': []})
 
     @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_detail_no_report_is_404(self, mock_instance):

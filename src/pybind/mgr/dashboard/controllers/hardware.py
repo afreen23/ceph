@@ -4,11 +4,12 @@ from typing import List, Optional
 import cherrypy
 from orchestrator import HardwareNoReport
 
+from ..model.hardware import HostHardware, HostReport
 from ..security import Scope
 from ..services._paginate import ListPaginator
 from ..services.exception import handle_custom_error
-from ..services.hardware import HardwareService, HostHardwareDetail
-from ..services.orchestrator import OrchClient
+from ..services.hardware import HardwareService
+from ..services.orchestrator import HardwareManager, OrchClient
 from . import APIDoc, APIRouter, EndpointDoc, Param, RESTController
 from ._version import APIVersion
 
@@ -42,7 +43,7 @@ class HardwareCompression(RESTController):
 class HardwareHosts(RESTController):
 
     @EndpointDoc(
-        "List all hosts with hardware health summary, paginated.",
+        "List the hardware of all hosts with node-proxy data, paginated.",
         parameters={
             'offset': Param(int, 'Offset into the host list (0-based)', True, 0),
             'limit': Param(int, 'Number of hosts to return (-1 for all)', True, 5),
@@ -63,9 +64,9 @@ class HardwareHosts(RESTController):
             default_sort='+hostname',
         )
         hosts = [
-            HardwareService.summarise_host(host_blob)
+            HostHardware.from_orch_report(report).to_dict()
             for ref in paginator.list()
-            if (host_blob := HardwareService.fetch_host_blob(hardware, ref['hostname']))
+            if (report := _report_if_present(hardware, ref['hostname']))
         ]
 
         # The paginator only knows the filtered count once list() is consumed.
@@ -73,11 +74,26 @@ class HardwareHosts(RESTController):
         return hosts
 
     @EndpointDoc(
-        "Get full hardware detail for a single host, with per-component data for all categories.",
+        "Get the hardware of a single host, with per-component data for all categories.",
         parameters={
             'hostname': Param(str, 'The name of the host to retrieve hardware detail for', False),
         }
     )
     @handle_custom_error('Hardware', http_status_code=404, exceptions=(HardwareNoReport,))
     def get(self, hostname: str):
-        return HostHardwareDetail(OrchClient.instance().hardware.fullreport(hostname))
+        return HostHardware.from_orch_report(
+            OrchClient.instance().hardware.fullreport(hostname)).to_dict()
+
+
+def _report_if_present(hardware: HardwareManager, hostname: str) -> Optional[HostReport]:
+    """
+    The host's node-proxy report, or None if it has none.
+
+    TOCTOU: a host removed between list_hosts() and this call makes
+    fullreport() raise HardwareNoReport; treat it as gone and skip it.
+    Any other orchestrator error is a real failure and propagates.
+    """
+    try:
+        return hardware.fullreport(hostname)
+    except HardwareNoReport:
+        return None
