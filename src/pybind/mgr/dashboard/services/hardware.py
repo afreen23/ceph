@@ -140,11 +140,25 @@ class HostReport(TypedDict, total=False):
 
 
 class CategorySummary(TypedDict):
-    health: str
+    health: Health
     total: int
     ok: int
     warning: int
     critical: int
+
+
+class HostSummary(TypedDict):
+    hostname: str
+    sn: str
+    health: Health
+    storage: CategorySummary
+    processors: CategorySummary
+    memory: CategorySummary
+    network: CategorySummary
+    power: CategorySummary
+    fans: CategorySummary
+    temperatures: CategorySummary
+    firmware: Dict[str, str]
 
 # pylint: enable=inherit-non-class
 
@@ -332,7 +346,7 @@ class HardwareService(object):
 
     @staticmethod
     def get_hosts(offset: int = 0, limit: int = 5,
-                  sort: str = '', search: str = '') -> List[Dict[str, Any]]:
+                  sort: str = '', search: str = '') -> List[HostSummary]:
         """
         GET /api/hardware/hosts — paginated list of hosts with hardware summary.
 
@@ -361,7 +375,7 @@ class HardwareService(object):
         # Step 3: fullreport only for page items.
         # TOCTOU: host may be removed between list_hosts() and fullreport() —
         # skip rather than emit a phantom entry.
-        hosts = []
+        hosts: List[HostSummary] = []
         for ref in paginator.list():
             hostname = ref['hostname']
             report = hardware.fullreport(hostname=hostname)
@@ -602,7 +616,7 @@ class HardwareService(object):
         return result
 
     @staticmethod
-    def _summarise_host(host_data: HostReport) -> Dict[str, Any]:
+    def _summarise_host(host_data: HostReport) -> HostSummary:
         """
         Build the per-host summary dict from a single host's fullreport blob.
 
@@ -615,7 +629,7 @@ class HardwareService(object):
         """
         status = host_data.get('status', {})
 
-        category_summaries: Dict[str, Any] = {}
+        category_summaries: Dict[str, CategorySummary] = {}
         for cat in _CATEGORIES:
             cat_data = status.get(cat, {})
             category_summaries[cat] = HardwareService._count_category(cat_data)
@@ -635,6 +649,12 @@ class HardwareService(object):
             'hostname': host_data.get('host', ''),
             'sn': host_data.get('sn', ''),
             'health': worst,
-            **category_summaries,
+            'storage': category_summaries['storage'],
+            'processors': category_summaries['processors'],
+            'memory': category_summaries['memory'],
+            'network': category_summaries['network'],
+            'power': category_summaries['power'],
+            'fans': category_summaries['fans'],
+            'temperatures': category_summaries['temperatures'],
             'firmware': firmware,
         }
