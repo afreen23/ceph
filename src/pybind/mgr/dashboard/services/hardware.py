@@ -4,11 +4,9 @@ from collections import Counter
 from enum import Enum
 from typing import Any, Dict, List, Optional, TypedDict
 
-import cherrypy
 from orchestrator import OrchestratorError
 
 from ..exceptions import DashboardException
-from ..services._paginate import ListPaginator
 from ..services.orchestrator import HardwareManager, OrchClient
 
 logger = logging.getLogger('services.hardware')
@@ -345,44 +343,7 @@ class HardwareService(object):
         }
 
     @staticmethod
-    def get_hosts(offset: int = 0, limit: int = 5,
-                  sort: str = '', search: str = '') -> List[HostSummary]:
-        """
-        GET /api/hardware/hosts — paginated list of hosts with hardware summary.
-
-        Follows the RBD lazy-fetch pattern:
-          1. Build cheap hostname refs for ALL hosts (no blobs loaded)
-          2. ListPaginator sorts/searches/slices on refs — O(N log N) CPU, no I/O
-          3. fullreport() called only for the current page — O(limit) blobs
-
-        Total count is set in X-Total-Count response header (dashboard standard).
-        TOCTOU: hosts removed between list_hosts() and fullreport() are skipped.
-        """
-        hardware = OrchClient.instance().hardware
-
-        # Step 1: cheap refs — just hostnames, no blobs loaded.
-        # Step 2: paginator sorts/searches/slices on refs.
-        paginator = ListPaginator(
-            offset, limit, sort, search,
-            input_list=[{'hostname': h} for h in hardware.list_hosts()],
-            searchable_params=['hostname'],
-            sortable_params=['hostname'],
-            default_sort='+hostname',
-        )
-
-        # Step 3: fullreport only for page items.
-        hosts = [
-            HardwareService._summarise_host(host_blob)
-            for ref in paginator.list()
-            if (host_blob := HardwareService._fetch_host_blob(hardware, ref['hostname']))
-        ]
-
-        # The paginator only knows the filtered count once list() is consumed.
-        cherrypy.response.headers['X-Total-Count'] = paginator.get_count()
-        return hosts
-
-    @staticmethod
-    def _fetch_host_blob(hardware: HardwareManager, hostname: str) -> Optional[HostReport]:
+    def fetch_host_blob(hardware: HardwareManager, hostname: str) -> Optional[HostReport]:
         """
         Return the node-proxy blob for one host, or None if it has none.
 
@@ -623,7 +584,7 @@ class HardwareService(object):
         return result
 
     @staticmethod
-    def _summarise_host(host_data: HostReport) -> HostSummary:
+    def summarise_host(host_data: HostReport) -> HostSummary:
         """
         Build the per-host summary dict from a single host's fullreport blob.
 

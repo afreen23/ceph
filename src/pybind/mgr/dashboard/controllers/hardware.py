@@ -1,8 +1,12 @@
 
 from typing import List, Optional
 
+import cherrypy
+
 from ..security import Scope
+from ..services._paginate import ListPaginator
 from ..services.hardware import HardwareService
+from ..services.orchestrator import OrchClient
 from . import APIDoc, APIRouter, EndpointDoc, Param, RESTController
 from ._version import APIVersion
 
@@ -45,7 +49,26 @@ class HardwareHosts(RESTController):
         }
     )
     def list(self, offset: int = 0, limit: int = 5, sort: str = '', search: str = ''):
-        return HardwareService.get_hosts(int(offset), int(limit), sort, search)
+        hardware = OrchClient.instance().hardware
+
+        # Paginate cheap hostname refs first, then load blobs only for this page:
+        # O(limit) blobs per request regardless of cluster size.
+        paginator = ListPaginator(
+            int(offset), int(limit), sort, search,
+            input_list=[{'hostname': h} for h in hardware.list_hosts()],
+            searchable_params=['hostname'],
+            sortable_params=['hostname'],
+            default_sort='+hostname',
+        )
+        hosts = [
+            HardwareService.summarise_host(host_blob)
+            for ref in paginator.list()
+            if (host_blob := HardwareService.fetch_host_blob(hardware, ref['hostname']))
+        ]
+
+        # The paginator only knows the filtered count once list() is consumed.
+        cherrypy.response.headers['X-Total-Count'] = paginator.get_count()
+        return hosts
 
     @EndpointDoc(
         "Get full hardware detail for a single host, with per-component data for all categories.",

@@ -1,12 +1,14 @@
 import unittest
 from unittest import mock
+from urllib.parse import urlencode
 
-import cherrypy
 from orchestrator import OrchestratorError
 
+from ..controllers.hardware import HardwareHosts
 from ..exceptions import DashboardException
 from ..services.hardware import STATUS_CRITICAL, STATUS_OK, STATUS_UNKNOWN, \
     STATUS_WARNING, HardwareService
+from ..tests import ControllerTestCase
 
 # mirrors NodeProxyCache.data[host] shape.
 MOCK_HOST_BLOB = {
@@ -349,10 +351,17 @@ class HardwareGetSummaryTest(unittest.TestCase):
         self.assertEqual(cat['critical'], 1)
 
 
-class HardwareGetHostsTest(unittest.TestCase):
-    def setUp(self):
-        # ListPaginator sets X-Total-Count on cherrypy.response.headers.
-        cherrypy.response.headers = {}
+class HardwareHostsControllerTest(ControllerTestCase):
+    URL = '/api/hardware/hosts'
+
+    @classmethod
+    def setup_server(cls):
+        cls.setup_controllers([HardwareHosts])
+
+    def _list(self, **params):
+        self._get(f'{self.URL}?{urlencode(params)}')
+        self.assertStatus(200)
+        return self.json_body()
 
     def _make_mock_client(self, hostnames, blobs):
         """
@@ -367,21 +376,21 @@ class HardwareGetHostsTest(unittest.TestCase):
         )
         return fake_client
 
-    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_response_shape(self, mock_instance):
         mock_instance.return_value = self._make_mock_client(
             ['host1'], {'host1': MOCK_HOST_BLOB}
         )
-        result = HardwareService.get_hosts(offset=0, limit=10)
+        result = self._list(offset=0, limit=10)
         self.assertIsInstance(result, list)
-        self.assertEqual(cherrypy.response.headers.get('X-Total-Count'), 1)
+        self.assertHeader('X-Total-Count', '1')
 
-    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_host_summary_fields(self, mock_instance):
         mock_instance.return_value = self._make_mock_client(
             ['host1'], {'host1': MOCK_HOST_BLOB}
         )
-        result = HardwareService.get_hosts(offset=0, limit=10)
+        result = self._list(offset=0, limit=10)
         host = result[0]
         self.assertEqual(host['hostname'], 'host1')
         self.assertEqual(host['sn'], 'ABC123')
@@ -390,94 +399,94 @@ class HardwareGetHostsTest(unittest.TestCase):
         self.assertIn('fans', host)
         self.assertIn('firmware', host)
 
-    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_storage_counts(self, mock_instance):
         # storage has 1 OK + 1 Critical -> storage.critical=1, health=Critical
         mock_instance.return_value = self._make_mock_client(
             ['host1'], {'host1': MOCK_HOST_BLOB}
         )
-        result = HardwareService.get_hosts(offset=0, limit=10)
+        result = self._list(offset=0, limit=10)
         storage = result[0]['storage']
         self.assertEqual(storage['total'], 2)
         self.assertEqual(storage['ok'], 1)
         self.assertEqual(storage['critical'], 1)
         self.assertEqual(storage['health'], STATUS_CRITICAL)
 
-    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_fans_counts(self, mock_instance):
         # fans has 1 OK + 1 Warning -> fans.health=Warning
         mock_instance.return_value = self._make_mock_client(
             ['host1'], {'host1': MOCK_HOST_BLOB}
         )
-        result = HardwareService.get_hosts(offset=0, limit=10)
+        result = self._list(offset=0, limit=10)
         fans = result[0]['fans']
         self.assertEqual(fans['total'], 2)
         self.assertEqual(fans['ok'], 1)
         self.assertEqual(fans['warning'], 1)
         self.assertEqual(fans['health'], STATUS_WARNING)
 
-    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_firmware_skips_unknown_version(self, mock_instance):
         # 'Lifecycle Controller' has version='unknown' -> should be excluded
         mock_instance.return_value = self._make_mock_client(
             ['host1'], {'host1': MOCK_HOST_BLOB}
         )
-        result = HardwareService.get_hosts(offset=0, limit=10)
+        result = self._list(offset=0, limit=10)
         fw = result[0]['firmware']
         self.assertIn('BMC', fw)
         self.assertIn('BIOS', fw)
         self.assertNotIn('Lifecycle Controller', fw)
         self.assertEqual(fw['BMC'], '2.14')
 
-    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_overall_health_worst_wins(self, mock_instance):
         # storage has Critical -> overall host health must be Critical
         mock_instance.return_value = self._make_mock_client(
             ['host1'], {'host1': MOCK_HOST_BLOB}
         )
-        result = HardwareService.get_hosts(offset=0, limit=10)
+        result = self._list(offset=0, limit=10)
         self.assertEqual(result[0]['health'], STATUS_CRITICAL)
 
-    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_pagination_total_in_header(self, mock_instance):
         # 3 hosts, limit=2 -> X-Total-Count=3, 2 hosts returned
         blobs = {f'host{i}': {**MOCK_HOST_BLOB, 'host': f'host{i}'} for i in range(3)}
         mock_instance.return_value = self._make_mock_client(
             list(blobs.keys()), blobs
         )
-        result = HardwareService.get_hosts(offset=0, limit=2)
-        self.assertEqual(cherrypy.response.headers.get('X-Total-Count'), 3)
+        result = self._list(offset=0, limit=2)
+        self.assertHeader('X-Total-Count', '3')
         self.assertEqual(len(result), 2)
 
-    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_pagination_second_page(self, mock_instance):
         # 3 hosts, offset=2 limit=2 -> 1 host on second page
         blobs = {f'host{i}': {**MOCK_HOST_BLOB, 'host': f'host{i}'} for i in range(3)}
         mock_instance.return_value = self._make_mock_client(
             list(blobs.keys()), blobs
         )
-        result = HardwareService.get_hosts(offset=2, limit=2)
+        result = self._list(offset=2, limit=2)
         self.assertEqual(len(result), 1)
 
-    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_empty_cluster(self, mock_instance):
         mock_instance.return_value = self._make_mock_client([], {})
-        result = HardwareService.get_hosts(offset=0, limit=10)
-        self.assertEqual(cherrypy.response.headers.get('X-Total-Count'), 0)
+        result = self._list(offset=0, limit=10)
+        self.assertHeader('X-Total-Count', '0')
         self.assertEqual(result, [])
 
-    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_sort_by_hostname(self, mock_instance):
         # Hosts returned in sorted order regardless of list_hosts() order
         blobs = {f'host{i}': {**MOCK_HOST_BLOB, 'host': f'host{i}'} for i in range(3)}
         mock_instance.return_value = self._make_mock_client(
             ['host2', 'host0', 'host1'], blobs
         )
-        result = HardwareService.get_hosts(offset=0, limit=10, sort='+hostname')
+        result = self._list(offset=0, limit=10, sort='+hostname')
         hostnames = [h['hostname'] for h in result]
         self.assertEqual(hostnames, sorted(hostnames))
 
-    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_search_by_hostname(self, mock_instance):
         # Search filters hosts
         blobs = {'web-node-01': {**MOCK_HOST_BLOB, 'host': 'web-node-01'},
@@ -485,11 +494,11 @@ class HardwareGetHostsTest(unittest.TestCase):
         mock_instance.return_value = self._make_mock_client(
             list(blobs.keys()), blobs
         )
-        result = HardwareService.get_hosts(offset=0, limit=10, search='osd')
+        result = self._list(offset=0, limit=10, search='osd')
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]['hostname'], 'osd-node-01')
 
-    @mock.patch('dashboard.services.hardware.OrchClient.instance')
+    @mock.patch('dashboard.controllers.hardware.OrchClient.instance')
     def test_host_removed_after_listing_is_skipped(self, mock_instance):
         # host1 vanishes between list_hosts() and fullreport()
         blobs = {f'host{i}': {**MOCK_HOST_BLOB, 'host': f'host{i}'} for i in range(3)}
@@ -502,5 +511,5 @@ class HardwareGetHostsTest(unittest.TestCase):
 
         fake_client.hardware.fullreport.side_effect = fullreport
         mock_instance.return_value = fake_client
-        result = HardwareService.get_hosts(offset=0, limit=10)
+        result = self._list(offset=0, limit=10)
         self.assertEqual([h['hostname'] for h in result], ['host0', 'host2'])
