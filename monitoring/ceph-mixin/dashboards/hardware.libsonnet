@@ -47,7 +47,7 @@ local g = import 'grafonnet/grafana.libsonnet';
       $.addTemplateSchema(
         'hostname',
         '$datasource',
-        'label_values(ceph_hardware_health, hostname)',
+        'label_values(ceph_hardware_status, hostname)',
         1,
         false,
         1,
@@ -83,7 +83,7 @@ local g = import 'grafonnet/grafana.libsonnet';
           noValue='N/A',
         )
         .addTarget($.addTargetSchema(
-          'max(ceph_hardware_health)',
+          'max(ceph_hardware_status)',
           legendFormat='Health'
         ))
         + {
@@ -226,7 +226,7 @@ local g = import 'grafonnet/grafana.libsonnet';
           reducerFunction='last',
           noValue='N/A',
         ).addTarget($.addTargetSchema(
-          'count(count by(hostname) (ceph_hardware_health))',
+          'count(count by(hostname) (ceph_hardware_status))',
           legendFormat='Hosts'
         ))
         + { description: 'Total hosts with hardware monitoring' },
@@ -277,7 +277,7 @@ local g = import 'grafonnet/grafana.libsonnet';
           reducerFunction='last',
           noValue='N/A',
         ).addTarget($.addTargetSchema(
-          'max(ceph_hardware_health{hostname=~"$hostname",category="power"})',
+          'max(ceph_hardware_status{hostname=~"$hostname",category="power"})',
           legendFormat='Power'
         ))
         + {
@@ -429,7 +429,7 @@ local g = import 'grafonnet/grafana.libsonnet';
           reducerFunction='last',
           noValue='N/A',
         ).addTarget($.addTargetSchema(
-          'max(ceph_hardware_health{hostname=~"$hostname",category="network"})',
+          'max(ceph_hardware_status{hostname=~"$hostname",category="network"})',
           legendFormat='Network'
         ))
         + {
@@ -456,7 +456,7 @@ local g = import 'grafonnet/grafana.libsonnet';
           reducerFunction='last',
           noValue='N/A',
         ).addTarget($.addTargetSchema(
-          'max(ceph_hardware_health{hostname=~"$hostname",category="fans"})',
+          'max(ceph_hardware_status{hostname=~"$hostname",category="fans"})',
           legendFormat='Cooling'
         ))
         + {
@@ -483,7 +483,7 @@ local g = import 'grafonnet/grafana.libsonnet';
           reducerFunction='last',
           noValue='N/A',
         ).addTarget($.addTargetSchema(
-          'max(ceph_hardware_health{hostname=~"$hostname",category="storage"})',
+          'max(ceph_hardware_status{hostname=~"$hostname",category="storage"})',
           legendFormat='Drives'
         ))
         + {

@@ -118,7 +118,7 @@
                "pluginVersion": "9.1.3",
                "targets": [
                   {
-                     "expr": "max(ceph_hardware_health)",
+                     "expr": "max(ceph_hardware_status)",
                      "format": "time_series",
                      "intervalFactor": 1,
                      "legendFormat": "Health",
@@ -449,7 +449,7 @@
                "pluginVersion": "9.1.3",
                "targets": [
                   {
-                     "expr": "count(count by(hostname) (ceph_hardware_health))",
+                     "expr": "count(count by(hostname) (ceph_hardware_status))",
                      "format": "time_series",
                      "intervalFactor": 1,
                      "legendFormat": "Hosts",
@@ -666,7 +666,7 @@
                "pluginVersion": "9.1.3",
                "targets": [
                   {
-                     "expr": "max(ceph_hardware_health{hostname=~\"$hostname\",category=\"power\"})",
+                     "expr": "max(ceph_hardware_status{hostname=~\"$hostname\",category=\"power\"})",
                      "format": "time_series",
                      "intervalFactor": 1,
                      "legendFormat": "Power",
@@ -1210,7 +1210,7 @@
                "pluginVersion": "9.1.3",
                "targets": [
                   {
-                     "expr": "max(ceph_hardware_health{hostname=~\"$hostname\",category=\"network\"})",
+                     "expr": "max(ceph_hardware_status{hostname=~\"$hostname\",category=\"network\"})",
                      "format": "time_series",
                      "intervalFactor": 1,
                      "legendFormat": "Network",
@@ -1291,7 +1291,7 @@
                "pluginVersion": "9.1.3",
                "targets": [
                   {
-                     "expr": "max(ceph_hardware_health{hostname=~\"$hostname\",category=\"fans\"})",
+                     "expr": "max(ceph_hardware_status{hostname=~\"$hostname\",category=\"fans\"})",
                      "format": "time_series",
                      "intervalFactor": 1,
                      "legendFormat": "Cooling",
@@ -1372,7 +1372,7 @@
                "pluginVersion": "9.1.3",
                "targets": [
                   {
-                     "expr": "max(ceph_hardware_health{hostname=~\"$hostname\",category=\"storage\"})",
+                     "expr": "max(ceph_hardware_status{hostname=~\"$hostname\",category=\"storage\"})",
                      "format": "time_series",
                      "intervalFactor": 1,
                      "legendFormat": "Drives",
@@ -2439,7 +2439,7 @@
             "multi": false,
             "name": "hostname",
             "options": [ ],
-            "query": "label_values(ceph_hardware_health, hostname)",
+            "query": "label_values(ceph_hardware_status, hostname)",
             "refresh": 1,
             "regex": "",
             "sort": 1,
