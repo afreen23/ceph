@@ -511,9 +511,59 @@ class OsdTest(ControllerTestCase):
         self._task_delete('/api/osd/7?force=true&preserve_id=true')
         self.assertStatus(204)
 
-        fake_client.osds.remove.assert_called_once_with(['7'], True)
+        fake_client.osds.remove.assert_called_once_with(['7'], True, zap=False)
         self.assertEqual(fake_client.osds.removing_status.call_count, 2)
         mock_sleep.assert_called_once_with(60)
+
+    @mock.patch('dashboard.controllers.osd.time.sleep')
+    @mock.patch('dashboard.controllers.orchestrator.OrchClient.instance')
+    def test_osd_delete_with_zap(self, instance, mock_sleep):  # pylint: disable=unused-argument
+        fake_client = mock.Mock()
+        instance.return_value = fake_client
+        fake_client.get_missing_features.return_value = []
+        fake_client.osds.removing_status.return_value = []
+
+        self._task_delete('/api/osd/7?force=true&preserve_id=true&zap=true')
+        self.assertStatus(204)
+
+        fake_client.osds.remove.assert_called_once_with(['7'], True, zap=True)
+
+    @mock.patch('dashboard.controllers.osd.time.sleep')
+    @mock.patch('dashboard.controllers.orchestrator.OrchClient.instance')
+    def test_osd_delete_zap_without_replace(self, instance, mock_sleep):  # pylint: disable=unused-argument
+        fake_client = mock.Mock()
+        instance.return_value = fake_client
+        fake_client.get_missing_features.return_value = []
+        fake_client.osds.removing_status.return_value = []
+
+        self._task_delete('/api/osd/7?force=true&preserve_id=false&zap=true')
+        self.assertStatus(204)
+
+        fake_client.osds.remove.assert_called_once_with(['7'], False, zap=True)
+
+    @mock.patch('dashboard.controllers.osd.time.sleep')
+    @mock.patch('dashboard.controllers.orchestrator.OrchClient.instance')
+    def test_osd_delete_zap_defaults_to_false(self, instance, mock_sleep):  # pylint: disable=unused-argument
+        fake_client = mock.Mock()
+        instance.return_value = fake_client
+        fake_client.get_missing_features.return_value = []
+        fake_client.osds.removing_status.return_value = []
+
+        self._task_delete('/api/osd/7?force=true')
+        self.assertStatus(204)
+
+        fake_client.osds.remove.assert_called_once_with(['7'], False, zap=False)
+
+    @mock.patch('dashboard.controllers.orchestrator.OrchClient.instance')
+    def test_osd_delete_invalid_zap(self, instance):
+        fake_client = mock.Mock()
+        instance.return_value = fake_client
+        fake_client.get_missing_features.return_value = []
+
+        self._task_delete('/api/osd/7?force=true&zap=maybe')
+        self.assertStatus(400)
+
+        fake_client.osds.remove.assert_not_called()
 
     @mock.patch('dashboard.controllers.orchestrator.OrchClient.instance')
     def test_get_removing_osds_with_dict_status(self, instance):

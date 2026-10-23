@@ -64,6 +64,13 @@ describe('OsdService', () => {
     expect(req.request.method).toBe('DELETE');
   });
 
+  it('should not zap by default on delete', () => {
+    const id = 1;
+    service.delete(id, true, true).subscribe();
+    const req = httpTesting.expectOne(`api/osd/${id}?preserve_id=true&force=true&zap=false`);
+    expect(req.request.method).toBe('DELETE');
+  });
+
   it('should call getList', () => {
     const context = new CdTableFetchDataContext(() => {});
     service.getList(context.toParams()).observable.subscribe();
