@@ -2186,22 +2186,55 @@ tests:
         exp_annotations:
           summary: "Fan FAN1 failed on node2 on cluster mycluster"
           description: "A cooling fault has been detected on node2. A cooling FAN within the enclosure has failed."
- # Hardware sensor disabled
+ # Cooling not enabled: sensors are grouped per host and state
  - interval: 1m
    input_series:
-    - series: 'ceph_hardware_status{category="fans",component="FAN2_TACH_IN",hostname="node1",state="Disabled",cluster="mycluster"}'
+    - series: 'ceph_hardware_status{category="fans",component="FAN1_TACH_IN",hostname="node1",state="Disabled",cluster="mycluster"}'
       values: '0+0x20'
-    - series: 'ceph_hardware_status{category="fans",component="FAN1_TACH_IN",hostname="node1",state="Enabled",cluster="mycluster"}'
+    - series: 'ceph_hardware_status{category="fans",component="FAN1_TACH_OUT",hostname="node1",state="Disabled",cluster="mycluster"}'
+      values: '0+0x20'
+    - series: 'ceph_hardware_status{category="fans",component="FAN2_TACH_IN",hostname="node1",state="UnavailableOffline",cluster="mycluster"}'
+      values: '0+0x20'
+    - series: 'ceph_hardware_status{category="fans",component="FAN3_TACH_IN",hostname="node1",state="Enabled",cluster="mycluster"}'
       values: '0+0x20'
    alert_rule_test:
     - eval_time: 10m
-      alertname: HardwareSensorDisabled
+      alertname: CoolingNotEnabled
     - eval_time: 16m
-      alertname: HardwareSensorDisabled
+      alertname: CoolingNotEnabled
       exp_alerts:
       - exp_labels:
-          category: fans
-          component: FAN2_TACH_IN
+          hostname: node1
+          state: Disabled
+          severity: warning
+          cluster: mycluster
+          type: ceph_default
+          oid: 1.3.6.1.4.1.50495.1.2.1.13.8
+        exp_annotations:
+          summary: "2 fan component(s) are Disabled on node1 on cluster mycluster"
+          description: "2 fan component(s) on node1 report the Redfish state \"Disabled\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+      - exp_labels:
+          hostname: node1
+          state: UnavailableOffline
+          severity: warning
+          cluster: mycluster
+          type: ceph_default
+          oid: 1.3.6.1.4.1.50495.1.2.1.13.8
+        exp_annotations:
+          summary: "1 fan component(s) are UnavailableOffline on node1 on cluster mycluster"
+          description: "1 fan component(s) on node1 report the Redfish state \"UnavailableOffline\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+ # PowerSupplyNotEnabled
+ - interval: 1m
+   input_series:
+    - series: 'ceph_hardware_status{category="power",component="PSU1",hostname="node1",state="Disabled",cluster="mycluster"}'
+      values: '0+0x20'
+   alert_rule_test:
+    - eval_time: 10m
+      alertname: PowerSupplyNotEnabled
+    - eval_time: 16m
+      alertname: PowerSupplyNotEnabled
+      exp_alerts:
+      - exp_labels:
           hostname: node1
           state: Disabled
           severity: warning
@@ -2209,8 +2242,113 @@ tests:
           type: ceph_default
           oid: 1.3.6.1.4.1.50495.1.2.1.13.7
         exp_annotations:
-          summary: "Hardware fans sensor FAN2_TACH_IN is Disabled on node1 on cluster mycluster"
-          description: "The fans component FAN2_TACH_IN on node1 reports state Disabled instead of Enabled, so its health is not being monitored. Check the BMC (for example with ipmitool sdr elist) for failed or disabled sensors."
+          summary: "1 power supply component(s) are Disabled on node1 on cluster mycluster"
+          description: "1 power supply component(s) on node1 report the Redfish state \"Disabled\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+ # NVMeDriveNotEnabled
+ - interval: 1m
+   input_series:
+    - series: 'ceph_hardware_status{category="storage",component="nvme0n1",hostname="node1",state="Disabled",cluster="mycluster"}'
+      values: '0+0x20'
+   alert_rule_test:
+    - eval_time: 10m
+      alertname: NVMeDriveNotEnabled
+    - eval_time: 16m
+      alertname: NVMeDriveNotEnabled
+      exp_alerts:
+      - exp_labels:
+          hostname: node1
+          state: Disabled
+          severity: warning
+          cluster: mycluster
+          type: ceph_default
+          oid: 1.3.6.1.4.1.50495.1.2.1.13.9
+        exp_annotations:
+          summary: "1 storage device component(s) are Disabled on node1 on cluster mycluster"
+          description: "1 storage device component(s) on node1 report the Redfish state \"Disabled\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+ # MemoryNotEnabled
+ - interval: 1m
+   input_series:
+    - series: 'ceph_hardware_status{category="memory",component="DIMM_A1",hostname="node1",state="Disabled",cluster="mycluster"}'
+      values: '0+0x20'
+   alert_rule_test:
+    - eval_time: 10m
+      alertname: MemoryNotEnabled
+    - eval_time: 16m
+      alertname: MemoryNotEnabled
+      exp_alerts:
+      - exp_labels:
+          hostname: node1
+          state: Disabled
+          severity: warning
+          cluster: mycluster
+          type: ceph_default
+          oid: 1.3.6.1.4.1.50495.1.2.1.13.10
+        exp_annotations:
+          summary: "1 memory module component(s) are Disabled on node1 on cluster mycluster"
+          description: "1 memory module component(s) on node1 report the Redfish state \"Disabled\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+ # ProcessorNotEnabled
+ - interval: 1m
+   input_series:
+    - series: 'ceph_hardware_status{category="processors",component="cpu1",hostname="node1",state="Disabled",cluster="mycluster"}'
+      values: '0+0x20'
+   alert_rule_test:
+    - eval_time: 10m
+      alertname: ProcessorNotEnabled
+    - eval_time: 16m
+      alertname: ProcessorNotEnabled
+      exp_alerts:
+      - exp_labels:
+          hostname: node1
+          state: Disabled
+          severity: warning
+          cluster: mycluster
+          type: ceph_default
+          oid: 1.3.6.1.4.1.50495.1.2.1.13.11
+        exp_annotations:
+          summary: "1 processor component(s) are Disabled on node1 on cluster mycluster"
+          description: "1 processor component(s) on node1 report the Redfish state \"Disabled\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+ # NetworkNotEnabled
+ - interval: 1m
+   input_series:
+    - series: 'ceph_hardware_status{category="network",component="nic0",hostname="node1",state="Disabled",cluster="mycluster"}'
+      values: '0+0x20'
+   alert_rule_test:
+    - eval_time: 10m
+      alertname: NetworkNotEnabled
+    - eval_time: 16m
+      alertname: NetworkNotEnabled
+      exp_alerts:
+      - exp_labels:
+          hostname: node1
+          state: Disabled
+          severity: warning
+          cluster: mycluster
+          type: ceph_default
+          oid: 1.3.6.1.4.1.50495.1.2.1.13.12
+        exp_annotations:
+          summary: "1 network interface component(s) are Disabled on node1 on cluster mycluster"
+          description: "1 network interface component(s) on node1 report the Redfish state \"Disabled\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+ # TemperatureSensorNotEnabled
+ - interval: 1m
+   input_series:
+    - series: 'ceph_hardware_status{category="temperatures",component="CPU1_TEMP",hostname="node1",state="Disabled",cluster="mycluster"}'
+      values: '0+0x20'
+   alert_rule_test:
+    - eval_time: 10m
+      alertname: TemperatureSensorNotEnabled
+    - eval_time: 16m
+      alertname: TemperatureSensorNotEnabled
+      exp_alerts:
+      - exp_labels:
+          hostname: node1
+          state: Disabled
+          severity: warning
+          cluster: mycluster
+          type: ceph_default
+          oid: 1.3.6.1.4.1.50495.1.2.1.13.13
+        exp_annotations:
+          summary: "1 temperature sensor component(s) are Disabled on node1 on cluster mycluster"
+          description: "1 temperature sensor component(s) on node1 report the Redfish state \"Disabled\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
  # NVMe drive degraded
  - interval: 1m
    input_series:

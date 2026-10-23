@@ -764,14 +764,74 @@ groups:
           oid: "1.3.6.1.4.1.50495.1.2.1.13.4"
           severity: "critical"
           type: "ceph_default"
-      - alert: "HardwareSensorDisabled"
+      - alert: "PowerSupplyNotEnabled"
         annotations:
-          description: "The {{ $labels.category }} component {{ $labels.component }} on {{ $labels.hostname }} reports state {{ $labels.state }} instead of Enabled, so its health is not being monitored. Check the BMC (for example with ipmitool sdr elist) for failed or disabled sensors."
-          summary: "Hardware {{ $labels.category }} sensor {{ $labels.component }} is {{ $labels.state }} on {{ $labels.hostname }} on cluster {{ $labels.cluster }}"
-        expr: "ceph_hardware_status{state!=\"Enabled\"}"
+          description: "{{ $value }} power supply component(s) on {{ $labels.hostname }} report the Redfish state \"{{ $labels.state }}\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+          summary: "{{ $value }} power supply component(s) are {{ $labels.state }} on {{ $labels.hostname }} on cluster {{ $labels.cluster }}"
+        expr: "count by (cluster,hostname, state) (ceph_hardware_status{category=\"power\", state!=\"Enabled\"}) > 0"
         for: "15m"
         labels:
           oid: "1.3.6.1.4.1.50495.1.2.1.13.7"
+          severity: "warning"
+          type: "ceph_default"
+      - alert: "CoolingNotEnabled"
+        annotations:
+          description: "{{ $value }} fan component(s) on {{ $labels.hostname }} report the Redfish state \"{{ $labels.state }}\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+          summary: "{{ $value }} fan component(s) are {{ $labels.state }} on {{ $labels.hostname }} on cluster {{ $labels.cluster }}"
+        expr: "count by (cluster,hostname, state) (ceph_hardware_status{category=\"fans\", state!=\"Enabled\"}) > 0"
+        for: "15m"
+        labels:
+          oid: "1.3.6.1.4.1.50495.1.2.1.13.8"
+          severity: "warning"
+          type: "ceph_default"
+      - alert: "NVMeDriveNotEnabled"
+        annotations:
+          description: "{{ $value }} storage device component(s) on {{ $labels.hostname }} report the Redfish state \"{{ $labels.state }}\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+          summary: "{{ $value }} storage device component(s) are {{ $labels.state }} on {{ $labels.hostname }} on cluster {{ $labels.cluster }}"
+        expr: "count by (cluster,hostname, state) (ceph_hardware_status{category=\"storage\", state!=\"Enabled\"}) > 0"
+        for: "15m"
+        labels:
+          oid: "1.3.6.1.4.1.50495.1.2.1.13.9"
+          severity: "warning"
+          type: "ceph_default"
+      - alert: "MemoryNotEnabled"
+        annotations:
+          description: "{{ $value }} memory module component(s) on {{ $labels.hostname }} report the Redfish state \"{{ $labels.state }}\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+          summary: "{{ $value }} memory module component(s) are {{ $labels.state }} on {{ $labels.hostname }} on cluster {{ $labels.cluster }}"
+        expr: "count by (cluster,hostname, state) (ceph_hardware_status{category=\"memory\", state!=\"Enabled\"}) > 0"
+        for: "15m"
+        labels:
+          oid: "1.3.6.1.4.1.50495.1.2.1.13.10"
+          severity: "warning"
+          type: "ceph_default"
+      - alert: "ProcessorNotEnabled"
+        annotations:
+          description: "{{ $value }} processor component(s) on {{ $labels.hostname }} report the Redfish state \"{{ $labels.state }}\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+          summary: "{{ $value }} processor component(s) are {{ $labels.state }} on {{ $labels.hostname }} on cluster {{ $labels.cluster }}"
+        expr: "count by (cluster,hostname, state) (ceph_hardware_status{category=\"processors\", state!=\"Enabled\"}) > 0"
+        for: "15m"
+        labels:
+          oid: "1.3.6.1.4.1.50495.1.2.1.13.11"
+          severity: "warning"
+          type: "ceph_default"
+      - alert: "NetworkNotEnabled"
+        annotations:
+          description: "{{ $value }} network interface component(s) on {{ $labels.hostname }} report the Redfish state \"{{ $labels.state }}\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+          summary: "{{ $value }} network interface component(s) are {{ $labels.state }} on {{ $labels.hostname }} on cluster {{ $labels.cluster }}"
+        expr: "count by (cluster,hostname, state) (ceph_hardware_status{category=\"network\", state!=\"Enabled\"}) > 0"
+        for: "15m"
+        labels:
+          oid: "1.3.6.1.4.1.50495.1.2.1.13.12"
+          severity: "warning"
+          type: "ceph_default"
+      - alert: "TemperatureSensorNotEnabled"
+        annotations:
+          description: "{{ $value }} temperature sensor component(s) on {{ $labels.hostname }} report the Redfish state \"{{ $labels.state }}\" instead of \"Enabled\", so their health is not being monitored. The state is reported by the BMC through node-proxy. Check the hardware dashboard or the BMC (for example with ipmitool sdr elist) for the affected components."
+          summary: "{{ $value }} temperature sensor component(s) are {{ $labels.state }} on {{ $labels.hostname }} on cluster {{ $labels.cluster }}"
+        expr: "count by (cluster,hostname, state) (ceph_hardware_status{category=\"temperatures\", state!=\"Enabled\"}) > 0"
+        for: "15m"
+        labels:
+          oid: "1.3.6.1.4.1.50495.1.2.1.13.13"
           severity: "warning"
           type: "ceph_default"
       - alert: "MotherboardTemperatureHigh"
