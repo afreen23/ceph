@@ -32,6 +32,21 @@ export const smbChildRoutes: Routes = [
         path: `${URLVerbs.EDIT}/:cluster_id`,
         component: SmbClusterFormComponent,
         data: { breadcrumbs: ActionLabels.EDIT, editing: true }
+      },
+      {
+        path: ':cluster_id',
+        children: [
+          {
+            path: `${URLVerbs.CREATE}`,
+            component: SmbShareFormComponent,
+            data: { breadcrumbs: ActionLabels.CREATE }
+          },
+          {
+            path: `${URLVerbs.EDIT}/:shareId`,
+            component: SmbShareFormComponent,
+            data: { breadcrumbs: ActionLabels.EDIT, editing: true }
+          }
+        ]
       }
     ]
   },
@@ -73,16 +88,6 @@ export const smbChildRoutes: Routes = [
     path: 'overview',
     component: SmbOverviewComponent,
     data: { breadcrumbs: 'Overview' }
-  },
-  {
-    path: `share/${URLVerbs.CREATE}/:clusterId`,
-    component: SmbShareFormComponent,
-    data: { breadcrumbs: ActionLabels.CREATE }
-  },
-  {
-    path: `share/${URLVerbs.EDIT}/:clusterId/:shareId`,
-    component: SmbShareFormComponent,
-    data: { breadcrumbs: ActionLabels.EDIT, editing: true }
   }
 ];
 
