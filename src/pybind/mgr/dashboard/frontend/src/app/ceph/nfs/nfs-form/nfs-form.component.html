@@ -265,7 +265,7 @@
           <span class="invalid-feedback"
                 *ngIf="nfsForm.showError('path', formDir, 'bucketNameNotAllowed')"
                 i18n>The bucket does not exist or is not in the default realm (if multiple realms are configured).
-                    To continue, <a routerLink="/rgw/bucket/create"
+                    To continue, <a [routerLink]="routes.RGW_BUCKET_CREATE"
                                     class="btn-link">create a new bucket</a>.</span>
         </ng-template>
       </div>

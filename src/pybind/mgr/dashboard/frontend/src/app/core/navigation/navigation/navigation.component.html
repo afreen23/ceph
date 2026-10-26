@@ -252,7 +252,7 @@
                             i18n-title
                             *ngIf="permissions.nfs.read && enabledFeature.nfs"
                             class="tc_submenuitem tc_submenuitem_rgw_nfs"><span i18n>NFS</span></cds-sidenav-item>
-          <cds-sidenav-item route="/rgw/smb"
+          <cds-sidenav-item [route]="smbRgwRoute"
                             [useRouter]="true"
                             title="SMB"
                             i18n-title
