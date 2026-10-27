@@ -1,6 +1,7 @@
+import dataclasses
 import logging
 import threading
-from typing import Tuple, Optional, List, Dict, Any
+from typing import Tuple, Optional, List, Dict, Any, Union
 import yaml
 
 from .cli import NFSCLICommand
@@ -13,7 +14,13 @@ from mgr_util import CephFSEarmarkResolver
 
 from .export import ExportMgr, AppliedExportResults
 from .cluster import NFSCluster
-from .utils import available_clusters, cephfs_client_for_mgr
+from .models import (
+    HostIPInput,
+    NetworksInput,
+    NFSClusterCreateRequest,
+    PlacementInput,
+)
+from .utils import available_clusters, cephfs_client_for_mgr, parse_host_ip_pairs
 from .qos_conf import QOSType, QOSBandwidthControl, UserQoSType, QOSOpsControl
 
 log = logging.getLogger(__name__)
@@ -205,31 +212,15 @@ class Module(orchestrator.OrchestratorClientMixin, MgrModule):
             tls_debug = config.get('tls_debug')
             tls_ciphers = config.get('tls_ciphers')
 
-        # Parse bind_addrs and monitoring_addrs from CLI format
-        ip_addrs = None
-        if bind_addrs:
-            ip_addrs = {}
-            for pair in bind_addrs.split(','):
-                if ':' in pair:
-                    host, ip = pair.split(':', 1)
-                    ip_addrs[host.strip()] = ip.strip()
-
-        monitoring_ip_addrs = None
-        if monitoring_addrs:
-            monitoring_ip_addrs = {}
-            for pair in monitoring_addrs.split(','):
-                if ':' in pair:
-                    host, ip = pair.split(':', 1)
-                    monitoring_ip_addrs[host.strip()] = ip.strip()
-
         return self.nfs.create_nfs_cluster(cluster_id=cluster_id, placement=placement,
                                            virtual_ip=virtual_ip, ingress=ingress,
                                            ingress_mode=ingress_mode, port=port,
                                            cluster_qos_config=cluster_qos_config,
                                            enable_nfsv3=enable_nfsv3,
                                            enable_nfs_metrics=enable_nfs_metrics,
-                                           ip_addrs=ip_addrs,
-                                           monitoring_ip_addrs=monitoring_ip_addrs,
+                                           ip_addrs=parse_host_ip_pairs(bind_addrs),
+                                           monitoring_ip_addrs=parse_host_ip_pairs(
+                                               monitoring_addrs),
                                            monitoring_port=monitoring_port,
                                            ssl=ssl,
                                            ssl_cert=ssl_cert,
@@ -316,56 +307,43 @@ class Module(orchestrator.OrchestratorClientMixin, MgrModule):
 
     def cluster_create(self,
                        cluster_id: str,
-                       placement: Optional[str] = None,
+                       placement: PlacementInput = None,
                        ingress: Optional[bool] = None,
                        virtual_ip: Optional[str] = None,
-                       ingress_mode: Optional[IngressType] = None,
+                       ingress_mode: Optional[Union[str, IngressType]] = None,
                        port: Optional[int] = None,
-                       bind_addrs: Optional[str] = None,
-                       monitoring_addrs: Optional[str] = None,
+                       bind_addrs: HostIPInput = None,
+                       monitoring_addrs: HostIPInput = None,
                        monitoring_port: Optional[int] = None,
                        enable_rdma: bool = False,
                        rdma_port: Optional[int] = None,
                        enable_nfsv3: bool = False,
-                       ingress_placement: Optional[str] = None,
-                       networks: Optional[List[str]] = None) -> None:
+                       enable_nfs_metrics: bool = False,
+                       ingress_placement: PlacementInput = None,
+                       networks: NetworksInput = None) -> None:
         """Python API for creating an NFS cluster (no CLI EmptyResponder wrapper)."""
-        ip_addrs = None
-        if bind_addrs:
-            ip_addrs = {}
-            for pair in bind_addrs.split(','):
-                if ':' in pair:
-                    host, ip = pair.split(':', 1)
-                    ip_addrs[host.strip()] = ip.strip()
-
-        monitoring_ip_addrs = None
-        if monitoring_addrs:
-            monitoring_ip_addrs = {}
-            for pair in monitoring_addrs.split(','):
-                if ':' in pair:
-                    host, ip = pair.split(':', 1)
-                    monitoring_ip_addrs[host.strip()] = ip.strip()
-
-        return self.nfs.create_nfs_cluster(
-            cluster_id=cluster_id,
+        request = NFSClusterCreateRequest.from_api(
+            cluster_id,
             placement=placement,
-            virtual_ip=virtual_ip,
             ingress=ingress,
+            virtual_ip=virtual_ip,
             ingress_mode=ingress_mode,
+            ingress_placement=ingress_placement,
             port=port,
-            enable_nfsv3=enable_nfsv3,
-            ip_addrs=ip_addrs,
-            monitoring_ip_addrs=monitoring_ip_addrs,
+            bind_addrs=bind_addrs,
+            monitoring_addrs=monitoring_addrs,
             monitoring_port=monitoring_port,
+            networks=networks,
+            enable_nfsv3=enable_nfsv3,
+            enable_nfs_metrics=enable_nfs_metrics,
             enable_rdma=enable_rdma,
             rdma_port=rdma_port,
-            ingress_placement=ingress_placement,
-            networks=networks,
         )
+        self.nfs.create_nfs_cluster(**dataclasses.asdict(request))
 
     def cluster_rm(self, cluster_id: str) -> None:
         """Python API for removing an NFS cluster (no CLI EmptyResponder wrapper)."""
-        return self.nfs.delete_nfs_cluster(cluster_id=cluster_id)
+        self.nfs.delete_nfs_cluster(cluster_id=cluster_id)
 
     def fetch_nfs_cluster_obj(self) -> NFSCluster:
         return self.nfs

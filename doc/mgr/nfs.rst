@@ -34,6 +34,7 @@ Create NFS-Ganesha Cluster
    ceph nfs cluster create <cluster_id> [<placement>] [--ingress] [--virtual_ip <value>] \
           [--ingress-mode {default|keepalive-only|haproxy-standard|haproxy-protocol}] \
           [--ingress-placement <placement>] [--port <int>] \
+          [--networks <network> [<network>...]] \
           [--enable-rdma] [--rdma_port <int>] [--enable-nfsv3] [-i <spec_file>]
 
 This creates a common recovery pool for all NFS-Ganesha daemons, a new user based on
@@ -148,6 +149,12 @@ how the *ingress* service is configured:
 - Setting ``--ingress-mode default`` is equivalent to not providing any other
   ingress mode by name. When no other ingress mode is specified by name
   the default ingress mode used is ``haproxy-standard``.
+
+By default, each NFS-Ganesha daemon listens on all addresses of its host.
+Pass ``--networks`` with one or more networks in CIDR notation (for example,
+``--networks 10.0.0.0/24``) to make each daemon listen only on the address its
+host has in one of those networks.  This option cannot be combined with
+``--virtual_ip``, except when ``--ingress-mode haproxy-standard`` is used.
 
 Ingress can be added to an existing NFS service (e.g., one initially created
 without the ``--ingress`` flag), and the basic NFS service can

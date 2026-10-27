@@ -265,8 +265,10 @@ class NFSCluster:
                 frontend_port = None
 
             # NFSServiceSpec forbids virtual_ip together with networks/ip_addrs
-            nfs_networks = None if virtual_ip_for_ganesha else networks
-            nfs_ip_addrs = None if virtual_ip_for_ganesha else ip_addrs
+            if virtual_ip_for_ganesha and (networks or ip_addrs):
+                raise NFSInvalidOperation(
+                    'networks and bind addresses cannot be combined with a virtual IP '
+                    'unless the ingress mode is haproxy-standard')
             spec = NFSServiceSpec(service_type='nfs', service_id=cluster_id,
                                   placement=pspec,
                                   # use non-default port so we don't conflict with ingress
@@ -284,12 +286,12 @@ class NFSCluster:
                                   tls_debug=tls_debug,
                                   tls_min_version=tls_min_version,
                                   tls_ciphers=tls_ciphers,
-                                  ip_addrs=nfs_ip_addrs,
+                                  ip_addrs=ip_addrs,
                                   monitoring_ip_addrs=monitoring_ip_addrs,
                                   monitoring_port=monitoring_port,
                                   enable_rdma=enable_rdma,
                                   rdma_port=rdma_port,
-                                  networks=nfs_networks)
+                                  networks=networks)
             completion = self.mgr.apply_nfs(spec)
             orchestrator.raise_if_exception(completion)
             ispec = IngressSpec(service_type='ingress',
@@ -386,48 +388,55 @@ class NFSCluster:
 
             create_ganesha_pool(self.mgr)
 
-            self.create_empty_rados_obj(cluster_id)
+            if cluster_id in available_clusters(self.mgr):
+                raise NonFatalError(f"{cluster_id} cluster already exists")
 
-            if cluster_id not in available_clusters(self.mgr):
-                try:
-                    self._call_orch_apply_nfs(
-                        cluster_id,
-                        placement,
-                        virtual_ip,
-                        ingress_mode,
-                        port,
-                        cluster_qos_config=cluster_qos_config,
-                        enable_nfsv3=enable_nfsv3,
-                        enable_nfs_metrics=enable_nfs_metrics,
-                        ssl=ssl,
-                        ssl_cert=ssl_cert,
-                        ssl_key=ssl_key,
-                        ssl_ca_cert=ssl_ca_cert,
-                        tls_ktls=tls_ktls,
-                        tls_debug=tls_debug,
-                        tls_min_version=tls_min_version,
-                        tls_ciphers=tls_ciphers,
-                        ip_addrs=ip_addrs,
-                        monitoring_ip_addrs=monitoring_ip_addrs,
-                        monitoring_port=monitoring_port,
-                        enable_rdma=enable_rdma,
-                        rdma_port=rdma_port,
-                        ingress_placement=ingress_placement,
-                        networks=networks
-                    )
-                except Exception:
-                    try:
-                        self.delete_config_obj(cluster_id)
-                    except Exception:
-                        log.exception(
-                            "Failed to clean up rados objects after NFS cluster "
-                            "create failure for %s", cluster_id)
-                    raise
-                return
-            raise NonFatalError(f"{cluster_id} cluster already exists")
+            self.create_empty_rados_obj(cluster_id)
+            try:
+                self._call_orch_apply_nfs(
+                    cluster_id,
+                    placement,
+                    virtual_ip,
+                    ingress_mode,
+                    port,
+                    cluster_qos_config=cluster_qos_config,
+                    enable_nfsv3=enable_nfsv3,
+                    enable_nfs_metrics=enable_nfs_metrics,
+                    ssl=ssl,
+                    ssl_cert=ssl_cert,
+                    ssl_key=ssl_key,
+                    ssl_ca_cert=ssl_ca_cert,
+                    tls_ktls=tls_ktls,
+                    tls_debug=tls_debug,
+                    tls_min_version=tls_min_version,
+                    tls_ciphers=tls_ciphers,
+                    ip_addrs=ip_addrs,
+                    monitoring_ip_addrs=monitoring_ip_addrs,
+                    monitoring_port=monitoring_port,
+                    enable_rdma=enable_rdma,
+                    rdma_port=rdma_port,
+                    ingress_placement=ingress_placement,
+                    networks=networks
+                )
+            except Exception:
+                self._rollback_failed_create(cluster_id)
+                raise
         except Exception as e:
             log.exception(f"NFS Cluster {cluster_id} could not be created")
             raise ErrorResponse.wrap(e)
+
+    def _rollback_failed_create(self, cluster_id: str) -> None:
+        for service_name in (f'ingress.nfs.{cluster_id}', f'nfs.{cluster_id}'):
+            try:
+                orchestrator.raise_if_exception(self.mgr.remove_service(service_name))
+            except Exception:
+                log.exception("Failed to remove service %s after NFS cluster "
+                              "create failure", service_name)
+        try:
+            self.delete_config_obj(cluster_id)
+        except Exception:
+            log.exception("Failed to clean up rados objects after NFS cluster "
+                          "create failure for %s", cluster_id)
 
     def delete_nfs_cluster(self, cluster_id: str) -> None:
         try:
@@ -633,8 +642,8 @@ class NFSCluster:
             completion = self.mgr.list_daemons(daemon_type='nfs')
             all_nfs_daemons = orchestrator.raise_if_exception(completion) or []
             cluster_daemons = [d for d in all_nfs_daemons if d.service_id() == cluster_id]
-        except orchestrator.OrchestratorError:
-            log.debug("Failed to list NFS daemons for cluster %s", cluster_id)
+        except orchestrator.OrchestratorError as e:
+            log.warning("Failed to list NFS daemons for cluster %s: %s", cluster_id, e)
 
         # Cache hosts data to avoid O(n) orchestrator calls
         hosts_map = {}
@@ -726,7 +735,7 @@ class NFSCluster:
                     else:
                         ip = resolve_ip(hostname)
                 except Exception:
-                    pass
+                    log.debug("Could not resolve an address for host %s", hostname)
                 backends.append({
                     "hostname": hostname,
                     "ip": ip,
@@ -777,14 +786,14 @@ class NFSCluster:
                     res = self._show_nfs_cluster_info(cid)
                     if res:
                         info_res[cid] = res
-                except Exception:
+                except Exception as e:
                     log.exception("Failed to show info for NFS cluster %s", cid)
                     # Still surface the cluster in listings even if details fail
                     info_res[cid] = {
-                        'deployment_type': 'standalone',
                         'virtual_ip': None,
                         'backend': [],
                         'placement': {},
+                        'error': str(e),
                     }
             return info_res
         except Exception as e:

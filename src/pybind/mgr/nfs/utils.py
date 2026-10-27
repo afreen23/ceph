@@ -1,7 +1,7 @@
 import functools
 import logging
 import stat
-from typing import List, Optional, Tuple, Any, TYPE_CHECKING
+from typing import Dict, List, Optional, Tuple, Any, TYPE_CHECKING
 
 from object_format import ErrorResponseBase
 import orchestrator
@@ -103,6 +103,17 @@ def available_clusters(mgr: 'Module') -> List[str]:
     assert completion.result is not None
     return [cluster.spec.service_id for cluster in completion.result
             if cluster.spec.service_id]
+
+
+def parse_host_ip_pairs(value: Optional[str]) -> Optional[Dict[str, str]]:
+    if not value:
+        return None
+    pairs = {}
+    for item in value.split(','):
+        host, sep, ip = item.partition(':')
+        if sep:
+            pairs[host.strip()] = ip.strip()
+    return pairs
 
 
 def get_nfs_spec_for_cluster(mgr: 'Module', cluster_id: str) -> Optional[Any]:
