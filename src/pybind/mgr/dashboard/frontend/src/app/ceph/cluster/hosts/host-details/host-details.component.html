@@ -29,6 +29,19 @@
       </ng-template>
     </ng-container>
     <ng-container
+      ngbNavItem="hardware"
+      *ngIf="hardwareEnabled$ | async"
+    >
+      <a
+        ngbNavLink
+        i18n
+        >Hardware</a
+      >
+      <ng-template ngbNavContent>
+        <cd-host-hardware [hostname]="selectedHostname"></cd-host-hardware>
+      </ng-template>
+    </ng-container>
+    <ng-container
       ngbNavItem="daemons"
       *ngIf="permissions.hosts.read"
     >

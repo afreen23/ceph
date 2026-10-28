@@ -1,0 +1,11 @@
+.host-hardware-fields {
+  display: grid;
+  gap: var(--cds-spacing-06);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding-inline: var(--cds-spacing-05);
+  width: 100%;
+}
+
+.host-hardware-drives {
+  padding-inline: var(--cds-spacing-05);
+}

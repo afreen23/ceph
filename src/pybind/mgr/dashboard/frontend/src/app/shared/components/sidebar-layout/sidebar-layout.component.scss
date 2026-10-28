@@ -27,6 +27,7 @@
 
 .sidebar-layout-main {
   margin-left: layout.rem(272px);
+  padding-bottom: var(--cds-spacing-07);
 
   .cds--table-toolbar {
     background-color: var(--cds-layer-03);

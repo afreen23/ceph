@@ -3,6 +3,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { RouterTestingModule } from '@angular/router/testing';
 
+import { of } from 'rxjs';
+
 import { CephModule } from '~/app/ceph/ceph.module';
 import { CephSharedModule } from '~/app/ceph/shared/ceph-shared.module';
 import { CoreModule } from '~/app/core/core.module';
@@ -56,6 +58,20 @@ describe('HostDetailsComponent', () => {
       expect(TabHelper.getTextContents(fixture)).toEqual([
         'Devices',
         'Physical Disks',
+        'Daemons',
+        'Performance Details',
+        'Device health'
+      ]);
+    });
+
+    it('should show the hardware tab when hardware monitoring is enabled', () => {
+      component.hardwareEnabled$ = of(true);
+      fixture.detectChanges();
+
+      expect(TabHelper.getTextContents(fixture)).toEqual([
+        'Devices',
+        'Physical Disks',
+        'Hardware',
         'Daemons',
         'Performance Details',
         'Device health'

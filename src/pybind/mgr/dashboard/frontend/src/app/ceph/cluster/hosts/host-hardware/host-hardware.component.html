@@ -1,0 +1,70 @@
+@if (hardware(); as report) {
+  <cd-details-card
+    cardTitle="Hardware"
+    i18n-cardTitle
+  >
+    <div class="details-body-content host-hardware-fields">
+      @for (field of fields(); track field.label) {
+        <div
+          cdsStack="vertical"
+          [gap]="1"
+        >
+          <span class="cds--type-label-01">
+            {{ field.label }}
+            @if (field.helperText) {
+              <cd-helper>{{ field.helperText }}</cd-helper>
+            }
+          </span>
+          <span class="cds--type-body-compact-01">{{ field.value | empty }}</span>
+        </div>
+      }
+    </div>
+  </cd-details-card>
+
+  @if (drives().length) {
+    <section class="host-hardware-drives cds-mt-6">
+      <h2
+        class="cds--type-heading-03"
+        i18n
+      >
+        Hardware drives
+      </h2>
+      <p
+        class="cds--type-body-compact-01 cds-mb-3"
+        i18n
+      >
+        Drives as reported by the server's BMC:
+        {drives().length, plural, =1 {1 drive} other {{{ drives().length }} drives}}.
+      </p>
+      <cd-table
+        [data]="drives()"
+        [columns]="driveColumns()"
+        columnMode="flex"
+        identifier="uid"
+        [toolHeader]="false"
+        [autoReload]="false"
+      >
+      </cd-table>
+    </section>
+  }
+} @else if (hardware() === null) {
+  <cd-alert-panel
+    type="info"
+    i18n
+    >No hardware data is reported for this host.</cd-alert-panel
+  >
+}
+
+<ng-template
+  #driveHealthTpl
+  let-value="data.value"
+>
+  @let health = driveHealth[value] ?? driveHealth.Unknown;
+  <span
+    cdsStack="horizontal"
+    [gap]="2"
+  >
+    <cd-icon [type]="health.icon"></cd-icon>
+    <span class="cds--type-body-compact-01">{{ health.label }}</span>
+  </span>
+</ng-template>
